@@ -1,0 +1,22 @@
+# deps
+node_modules/
+
+# next.js
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+.vercel
+
+# foundry
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# os
+.DS_Store
