@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { encryptClaimKey, xAuthEnabled } from "@/lib/xAuth";
+import { encryptClaimKey, lockConfigured } from "@/lib/xAuth";
 
 export const runtime = "nodejs";
 
 /**
  * Locks a claim key to a specific X handle. Called by the sender right
  * after creating a drop. Returns an encrypted blob that replaces the raw
- * claim key in the link; only /api/unlock (with a matching X session)
- * can turn it back into the claim key.
+ * claim key in the link; the server only turns it back into a claim after
+ * the recipient proves control of the handle (proof tweet or X session).
  */
 export async function POST(req: Request) {
-  if (!xAuthEnabled()) {
-    return NextResponse.json({ error: "X sign-in is not configured" }, { status: 503 });
+  if (!lockConfigured()) {
+    return NextResponse.json({ error: "Locking is not configured" }, { status: 503 });
   }
   const { claimPriv, handle } = (await req.json()) as {
     claimPriv?: string;

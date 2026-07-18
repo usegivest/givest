@@ -34,6 +34,14 @@ export function xAuthEnabled(): boolean {
   );
 }
 
+/**
+ * Recipient locks only need the signing secret, not X OAuth. Verification
+ * happens through a public proof tweet instead of a sign-in flow.
+ */
+export function lockConfigured(): boolean {
+  return Boolean(process.env.SESSION_SECRET ?? process.env.RELAYER_PRIVATE_KEY);
+}
+
 function hmac(data: string): string {
   return createHmac("sha256", secret()).update(data).digest("hex");
 }
@@ -127,6 +135,23 @@ export function decryptClaimKey(blob: string, handle: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Short verification code the recipient posts in a tweet. It binds the
+ * locked drop, the required handle, and the destination wallet, so a
+ * proof tweet cannot be replayed to claim to a different address.
+ */
+export function claimTweetCode(
+  blob: string,
+  handle: string,
+  recipient: string,
+): string {
+  const blobHash = createHash("sha256").update(blob).digest("hex");
+  const digest = hmac(
+    `tweetcode|${blobHash}|${handle.toLowerCase()}|${recipient.toLowerCase()}`,
+  );
+  return `GVST-${digest.slice(0, 8).toUpperCase()}`;
 }
 
 /** PKCE helpers */

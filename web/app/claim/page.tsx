@@ -116,16 +116,25 @@ export default function ClaimPage() {
   const [rhAddress, setRhAddress] = useState("");
   const [lockedTo, setLockedTo] = useState<string | null>(null);
   const [lockBlob, setLockBlob] = useState<string | null>(null);
-  const [lockSession, setLockSession] = useState<string | null>(null);
   const [lockError, setLockError] = useState<string | null>(null);
-
-  function verifyWithX() {
-    sessionStorage.setItem(
-      "givest_claim_hash",
-      window.location.hash.replace(/^#/, ""),
-    );
-    window.location.href = "/api/auth/x/login?next=/claim";
-  }
+  const [lockInfo, setLockInfo] = useState<{
+    symbol: string | null;
+    name: string | null;
+    shares: number;
+    status: number;
+    maxClaims: number;
+    claimsMade: number;
+  } | null>(null);
+  const [lockRecipient, setLockRecipient] = useState<Address | null>(null);
+  const [lockAddrInput, setLockAddrInput] = useState("");
+  const [lockTweetText, setLockTweetText] = useState<string | null>(null);
+  const [lockTweetUrl, setLockTweetUrl] = useState("");
+  const [lockClaiming, setLockClaiming] = useState(false);
+  const [lockDone, setLockDone] = useState<{
+    txHash: string;
+    symbol: string | null;
+    shares: number;
+  } | null>(null);
 
   useEffect(() => {
     setPlatform(detectPlatform());
@@ -192,36 +201,72 @@ export default function ClaimPage() {
     setClaimPriv(key as Hex);
   }, []);
 
-  // Locked drops: check who is signed in and try to unlock.
+  // Locked drops: show what is inside without exposing the claim key.
   useEffect(() => {
     if (!lockedTo || !lockBlob || claimPriv) return;
     (async () => {
       try {
-        const meRes = await fetch("/api/auth/x/me");
-        const me = meRes.ok ? await meRes.json() : null;
-        const handle: string | null = me?.user?.handle ?? null;
-        setLockSession(handle);
-        if (handle && handle.toLowerCase() === lockedTo.toLowerCase()) {
-          const res = await fetch("/api/unlock", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ blob: lockBlob, handle: lockedTo }),
-          });
-          if (res.ok) {
-            const { claimPriv: pk } = await res.json();
-            // Keep loading=true; the drop fetch effect takes over from here.
-            setClaimPriv(pk as Hex);
-            return;
-          }
-          setLockError("Could not unlock this drop. Try signing in again.");
+        const res = await fetch("/api/locked-info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blob: lockBlob, to: lockedTo }),
+        });
+        if (res.ok) {
+          setLockInfo(await res.json());
+        } else {
+          const body = await res.json().catch(() => null);
+          setLockError(body?.error ?? "Could not read this locked drop.");
         }
-        setLoading(false);
       } catch {
-        setLockError("Could not check the lock. Reload and try again.");
+        setLockError("Could not read this locked drop. Reload and try again.");
+      } finally {
         setLoading(false);
       }
     })();
   }, [lockedTo, lockBlob, claimPriv]);
+
+  // Once a destination wallet is chosen, fetch the tweet verification code
+  // bound to that wallet.
+  useEffect(() => {
+    if (!lockedTo || !lockBlob || !lockRecipient) return;
+    setLockTweetText(null);
+    fetch("/api/lock-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blob: lockBlob, to: lockedTo, recipient: lockRecipient }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.tweetText) setLockTweetText(d.tweetText);
+        else setLockError("Could not prepare verification. Try again.");
+      })
+      .catch(() => setLockError("Could not prepare verification. Try again."));
+  }, [lockedTo, lockBlob, lockRecipient]);
+
+  async function claimLocked() {
+    if (!lockedTo || !lockBlob || !lockRecipient) return;
+    setLockClaiming(true);
+    setLockError(null);
+    try {
+      const res = await fetch("/api/claim-locked", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blob: lockBlob,
+          to: lockedTo,
+          recipient: lockRecipient,
+          tweetUrl: lockTweetUrl.trim() || undefined,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Claim failed");
+      setLockDone(body);
+    } catch (e) {
+      setLockError(e instanceof Error ? e.message : "Claim failed");
+    } finally {
+      setLockClaiming(false);
+    }
+  }
 
   useEffect(() => {
     if (!claimKeyAddress || !fromX || !fromXSig) return;
@@ -355,16 +400,56 @@ export default function ClaimPage() {
     );
   }
 
+  if (lockDone) {
+    return (
+      <ClaimLayout
+        eyebrow="Claim complete"
+        title="It is yours."
+        accent="Welcome to ownership."
+        subtitle="The stock tokens have arrived in your wallet. No network fee was charged to you."
+      >
+        <StatusCard
+          icon={<Check className="h-5 w-5" />}
+          title={
+            lockDone.symbol
+              ? `${lockDone.shares.toFixed(4)} ${lockDone.symbol} is yours`
+              : "Your drop is claimed"
+          }
+          body="The tokens were transferred to your wallet. Welcome to Robinhood Chain."
+        />
+        {newWallet && (
+          <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-left text-sm">
+            <p className="font-semibold text-amber-900">
+              Save your key now. It will never be shown again:
+            </p>
+            <code className="mt-2 block break-all text-xs leading-5 text-amber-800">
+              {newWallet.privateKey}
+            </code>
+          </div>
+        )}
+        <div className="mt-5 text-center">
+          <a
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-gray-900"
+            href={`https://robinhoodchain.blockscout.com/tx/${lockDone.txHash}`}
+            target="_blank"
+          >
+            View transaction <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </ClaimLayout>
+    );
+  }
+
   if (!claimPriv && lockedTo) {
-    const wrongAccount =
-      lockSession !== null &&
-      lockSession.toLowerCase() !== lockedTo.toLowerCase();
+    const fullyClaimed =
+      lockInfo !== null &&
+      (lockInfo.status === 2 || lockInfo.claimsMade >= lockInfo.maxClaims);
     return (
       <ClaimLayout
         eyebrow="Reserved drop"
         title="This one has a name on it."
         accent={`Only @${lockedTo} can claim.`}
-        subtitle="The sender locked this drop to one X account. Verify it is you, then claim like any other drop. Free, onchain, no gas."
+        subtitle="The sender locked this drop to one X account. Prove it is you with a short post on X, then we claim it for you. Free, onchain, no gas."
       >
         <div className="pop-in rounded-2xl border border-gray-200/60 bg-white/95 p-6 shadow-lg backdrop-blur-md sm:p-8">
           <div className="flex items-center gap-4">
@@ -384,7 +469,9 @@ export default function ClaimPage() {
                 Reserved for @{lockedTo}
               </p>
               <p className="mt-0.5 text-sm text-gray-500">
-                This drop is locked to one X account.
+                {lockInfo?.symbol
+                  ? `${lockInfo.shares.toFixed(4)} ${lockInfo.symbol} is waiting`
+                  : "This drop is locked to one X account."}
               </p>
             </div>
           </div>
@@ -398,47 +485,152 @@ export default function ClaimPage() {
             </div>
           )}
 
-          <div className="mt-7">
-            {wrongAccount ? (
-              <>
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  You are signed in as{" "}
-                  <span className="font-semibold">@{lockSession}</span>, but this
-                  drop is reserved for{" "}
-                  <span className="font-semibold">@{lockedTo}</span>.
+          {fullyClaimed ? (
+            <p className="mt-7 rounded-xl bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">
+              This drop has already been claimed.
+            </p>
+          ) : (
+            <div className="mt-7 space-y-5">
+              <div>
+                <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">
+                  Step 1 · Where should the stock go?
                 </p>
-                <button
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white py-3.5 text-sm font-semibold text-gray-800 transition hover:border-gray-400"
-                  onClick={async () => {
-                    await fetch("/api/auth/x/me", { method: "DELETE" });
-                    verifyWithX();
-                  }}
-                >
-                  Switch X account
-                </button>
-              </>
-            ) : (
-              <button
-                className="gradient-border-btn flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold text-gray-900"
-                onClick={verifyWithX}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-                Verify it&apos;s me with X
-              </button>
-            )}
+                {lockRecipient ? (
+                  <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3">
+                    <p className="truncate font-mono text-xs text-gray-700">
+                      {lockRecipient}
+                    </p>
+                    <button
+                      className="shrink-0 text-xs font-medium text-gray-400 underline-offset-2 hover:text-gray-800 hover:underline"
+                      onClick={() => {
+                        setLockRecipient(null);
+                        setLockTweetText(null);
+                        setLockTweetUrl("");
+                        setNewWallet(null);
+                      }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2.5">
+                    <button
+                      className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-900 bg-gray-900 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                      onClick={async () => {
+                        try {
+                          const { address } = await connect();
+                          setLockRecipient(address);
+                        } catch {
+                          setLockError("Could not connect a wallet.");
+                        }
+                      }}
+                    >
+                      <Wallet className="h-4 w-4" />
+                      Use my wallet
+                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        className="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 font-mono text-xs text-gray-700 outline-none focus:border-gray-500"
+                        placeholder="Or paste a wallet address (0x…)"
+                        value={lockAddrInput}
+                        onChange={(e) => setLockAddrInput(e.target.value.trim())}
+                      />
+                      <button
+                        className="shrink-0 rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-gray-400 disabled:opacity-40"
+                        disabled={!isAddress(lockAddrInput)}
+                        onClick={() => setLockRecipient(lockAddrInput as Address)}
+                      >
+                        Use
+                      </button>
+                    </div>
+                    <button
+                      className="w-full text-center text-xs text-gray-400 underline-offset-2 transition hover:text-gray-700 hover:underline"
+                      onClick={() => {
+                        const privateKey = generatePrivateKey();
+                        const address = privateKeyToAccount(privateKey).address;
+                        setNewWallet({ privateKey, address });
+                        setLockRecipient(address);
+                      }}
+                    >
+                      No wallet? Create an instant browser wallet
+                    </button>
+                  </div>
+                )}
+                {newWallet && lockRecipient === newWallet.address && (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs">
+                    <p className="font-semibold text-amber-950">
+                      Save this private key before you continue:
+                    </p>
+                    <code className="mt-1.5 block break-all text-[11px] leading-5 text-amber-800">
+                      {newWallet.privateKey}
+                    </code>
+                  </div>
+                )}
+              </div>
 
-            {lockError && (
-              <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
-                {lockError}
-              </p>
-            )}
-
-            <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-gray-400">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              We only read your username. Nothing is posted.
+              {lockRecipient && (
+                <div>
+                  <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">
+                    Step 2 · Prove you are @{lockedTo}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-gray-500">
+                    Post this from{" "}
+                    <span className="font-semibold text-gray-900">@{lockedTo}</span>,
+                    then paste the link to your post below. You can delete the
+                    post right after claiming.
+                  </p>
+                  {lockTweetText ? (
+                    <>
+                      <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 font-mono text-xs leading-5 text-gray-700">
+                        {lockTweetText}
+                      </div>
+                      <a
+                        href={`https://x.com/intent/post?text=${encodeURIComponent(lockTweetText)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-gray-900 bg-gray-900 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                        </svg>
+                        Post it on X
+                      </a>
+                      <input
+                        className="mt-3 w-full rounded-full border border-gray-200 px-4 py-3 text-xs text-gray-700 outline-none focus:border-gray-500"
+                        placeholder="Paste the link to your post (x.com/…/status/…)"
+                        value={lockTweetUrl}
+                        onChange={(e) => setLockTweetUrl(e.target.value)}
+                      />
+                      <button
+                        className="gradient-border-btn mt-3 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold text-gray-900 disabled:opacity-45"
+                        disabled={lockClaiming || !lockTweetUrl.trim()}
+                        onClick={claimLocked}
+                      >
+                        {lockClaiming ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+                        ) : (
+                          <ShieldCheck className="h-4 w-4" />
+                        )}
+                        {lockClaiming ? "Verifying and claiming" : "Verify and claim"}
+                      </button>
+                    </>
+                  ) : (
+                    <div className="skeleton mt-3 h-10 w-full rounded-xl" />
+                  )}
+                </div>
+              )}
             </div>
+          )}
+
+          {lockError && (
+            <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+              {lockError}
+            </p>
+          )}
+
+          <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-gray-400">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            The post only proves it is your account. Nothing else is read.
           </div>
         </div>
       </ClaimLayout>

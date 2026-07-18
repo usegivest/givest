@@ -517,7 +517,8 @@ export default function SendPage() {
                 Only @{lockHandle.trim().replace(/^@/, "")} can claim
               </p>
               <p className="mt-0.5 text-xs text-violet-800/80">
-                Safe to share publicly. They verify with X before claiming.
+                Safe to share publicly. They verify with a short X post before
+                claiming.
               </p>
             </div>
           )}
@@ -1087,8 +1088,7 @@ export default function SendPage() {
             )}
           </div>
 
-          {xAuth.enabled && (
-            <div className="mt-4">
+          <div className="mt-4">
               <label className="flex cursor-pointer items-center justify-between gap-3">
                 <span>
                   <span className="block text-sm font-semibold tracking-tight text-gray-900">
@@ -1096,7 +1096,8 @@ export default function SendPage() {
                     <span className="font-normal text-gray-400">(optional)</span>
                   </span>
                   <span className="mt-0.5 block text-xs text-gray-400">
-                    Only a specific X account can claim, verified by signing in.
+                    Only a specific X account can claim, verified with a short
+                    post from that account.
                   </span>
                 </span>
                 <button
@@ -1135,13 +1136,13 @@ export default function SendPage() {
                       <span className="font-semibold text-gray-900">
                         @{lockHandle.trim().replace(/^@/, "")}
                       </span>{" "}
-                      can claim it, after verifying with X.
+                      can claim it, after posting a short verification code
+                      from their account.
                     </p>
                   )}
                 </>
               )}
             </div>
-          )}
 
           {error && (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
