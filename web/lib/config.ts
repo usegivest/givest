@@ -71,6 +71,7 @@ export const STOCKS: Stock[] = [
   { symbol: "NVDA", name: "NVIDIA", address: "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec", feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" },
   { symbol: "AAPL", name: "Apple", address: "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9", feed: "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0" },
   { symbol: "TSLA", name: "Tesla", address: "0x322f0929c4625ed5bad873c95208d54e1c003b2d", feed: "0x4A1166a659A55625345e9515b32adECea5547C38" },
+  { symbol: "HOOD", name: "Robinhood", address: "0x274C8C4665c0343730C78B184e560F902A8Bf200", feed: null },
   { symbol: "MSFT", name: "Microsoft", address: "0xe93237c50d904957cf27e7b1133b510c669c2e74", feed: "0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E" },
   { symbol: "META", name: "Meta", address: "0xc0d6457c16cc70d6790dd43521c899c87ce02f35", feed: "0x7C38C00C30BEe9378381E7B6135d7283356D71b1" },
   { symbol: "GOOGL", name: "Alphabet", address: "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3", feed: "0xF6f373a037c30F0e5010d854385cA89185AE638b" },
