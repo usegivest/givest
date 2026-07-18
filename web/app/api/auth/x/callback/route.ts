@@ -26,8 +26,12 @@ export async function GET(req: Request) {
     }),
   );
 
+  const rawReturn = decodeURIComponent(cookies["gx_return"] ?? "");
+  const returnTo =
+    rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : "/send";
+
   if (!code || !state || state !== cookies["gx_state"] || !cookies["gx_pkce"]) {
-    return NextResponse.redirect(`${origin}/send?x_error=state_mismatch`);
+    return NextResponse.redirect(`${origin}${returnTo}?x_error=state_mismatch`);
   }
 
   try {
@@ -55,7 +59,7 @@ export async function GET(req: Request) {
     });
     if (!tokenRes.ok) {
       console.error("[x auth] token exchange failed", await tokenRes.text());
-      return NextResponse.redirect(`${origin}/send?x_error=token`);
+      return NextResponse.redirect(`${origin}${returnTo}?x_error=token`);
     }
     const token = (await tokenRes.json()) as { access_token: string };
 
@@ -65,7 +69,7 @@ export async function GET(req: Request) {
     );
     if (!meRes.ok) {
       console.error("[x auth] users/me failed", await meRes.text());
-      return NextResponse.redirect(`${origin}/send?x_error=profile`);
+      return NextResponse.redirect(`${origin}${returnTo}?x_error=profile`);
     }
     const me = (await meRes.json()) as {
       data: { username: string; name: string; profile_image_url?: string };
@@ -78,13 +82,13 @@ export async function GET(req: Request) {
       iat: Math.floor(Date.now() / 1000),
     });
 
-    const res = NextResponse.redirect(`${origin}/send?x_connected=1`);
+    const res = NextResponse.redirect(`${origin}${returnTo}?x_connected=1`);
     res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions());
     res.cookies.delete("gx_pkce");
     res.cookies.delete("gx_state");
     return res;
   } catch (e) {
     console.error("[x auth]", e);
-    return NextResponse.redirect(`${origin}/send?x_error=unknown`);
+    return NextResponse.redirect(`${origin}${returnTo}?x_error=unknown`);
   }
 }

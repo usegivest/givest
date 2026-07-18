@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, isAddress, type Address, type Hex } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
-import { ArrowUpRight, Check, Gift, KeyRound, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowUpRight, Check, Gift, KeyRound, Lock, ShieldCheck, Wallet } from "lucide-react";
 import EditorialPageShell from "@/components/EditorialPageShell";
 import StockLogo from "@/components/StockLogo";
 import {
@@ -114,6 +114,18 @@ export default function ClaimPage() {
   const [noWalletOpen, setNoWalletOpen] = useState(false);
   const [platform, setPlatform] = useState<Platform>("desktop");
   const [rhAddress, setRhAddress] = useState("");
+  const [lockedTo, setLockedTo] = useState<string | null>(null);
+  const [lockBlob, setLockBlob] = useState<string | null>(null);
+  const [lockSession, setLockSession] = useState<string | null>(null);
+  const [lockError, setLockError] = useState<string | null>(null);
+
+  function verifyWithX() {
+    sessionStorage.setItem(
+      "givest_claim_hash",
+      window.location.hash.replace(/^#/, ""),
+    );
+    window.location.href = "/api/auth/x/login?next=/claim";
+  }
 
   useEffect(() => {
     setPlatform(detectPlatform());
@@ -137,6 +149,15 @@ export default function ClaimPage() {
   }, []);
 
   useEffect(() => {
+    // Restore the link hash after an OAuth round trip (the fragment never
+    // leaves the browser, so we park it in sessionStorage before login).
+    if (!window.location.hash) {
+      const saved = sessionStorage.getItem("givest_claim_hash");
+      if (saved) {
+        sessionStorage.removeItem("givest_claim_hash");
+        window.location.hash = saved;
+      }
+    }
     const hash = window.location.hash.slice(1);
     if (!hash) {
       setLoading(false);
@@ -151,6 +172,18 @@ export default function ClaimPage() {
       const xv = params.get("xv");
       if (xv && /^[0-9a-f]{64}$/i.test(xv)) setFromXSig(xv);
     }
+    if (key === "locked") {
+      const to = params.get("to");
+      const lk = params.get("lk");
+      if (to && lk && /^[A-Za-z0-9_]{1,15}$/.test(to)) {
+        setLockedTo(to);
+        setLockBlob(lk);
+        return;
+      }
+      setError("Invalid claim link.");
+      setLoading(false);
+      return;
+    }
     if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
       setError("Invalid claim link.");
       setLoading(false);
@@ -158,6 +191,37 @@ export default function ClaimPage() {
     }
     setClaimPriv(key as Hex);
   }, []);
+
+  // Locked drops: check who is signed in and try to unlock.
+  useEffect(() => {
+    if (!lockedTo || !lockBlob || claimPriv) return;
+    (async () => {
+      try {
+        const meRes = await fetch("/api/auth/x/me");
+        const me = meRes.ok ? await meRes.json() : null;
+        const handle: string | null = me?.user?.handle ?? null;
+        setLockSession(handle);
+        if (handle && handle.toLowerCase() === lockedTo.toLowerCase()) {
+          const res = await fetch("/api/unlock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ blob: lockBlob, handle: lockedTo }),
+          });
+          if (res.ok) {
+            const { claimPriv: pk } = await res.json();
+            // Keep loading=true; the drop fetch effect takes over from here.
+            setClaimPriv(pk as Hex);
+            return;
+          }
+          setLockError("Could not unlock this drop. Try signing in again.");
+        }
+        setLoading(false);
+      } catch {
+        setLockError("Could not check the lock. Reload and try again.");
+        setLoading(false);
+      }
+    })();
+  }, [lockedTo, lockBlob, claimPriv]);
 
   useEffect(() => {
     if (!claimKeyAddress || !fromX || !fromXSig) return;
@@ -286,6 +350,96 @@ export default function ClaimPage() {
           >
             View transaction <ArrowUpRight className="h-3.5 w-3.5" />
           </a>
+        </div>
+      </ClaimLayout>
+    );
+  }
+
+  if (!claimPriv && lockedTo) {
+    const wrongAccount =
+      lockSession !== null &&
+      lockSession.toLowerCase() !== lockedTo.toLowerCase();
+    return (
+      <ClaimLayout
+        eyebrow="Reserved drop"
+        title="This one has a name on it."
+        accent={`Only @${lockedTo} can claim.`}
+        subtitle="The sender locked this drop to one X account. Verify it is you, then claim like any other drop. Free, onchain, no gas."
+      >
+        <div className="pop-in rounded-2xl border border-gray-200/60 bg-white/95 p-6 shadow-lg backdrop-blur-md sm:p-8">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`https://unavatar.io/x/${lockedTo}`}
+                alt={`@${lockedTo}`}
+                className="h-14 w-14 rounded-full bg-gray-200 object-cover ring-1 ring-gray-200"
+              />
+              <span className="absolute -right-1 -bottom-1 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-white ring-2 ring-white">
+                <Lock className="h-3 w-3" />
+              </span>
+            </div>
+            <div>
+              <p className="text-lg font-semibold tracking-tight text-gray-900">
+                Reserved for @{lockedTo}
+              </p>
+              <p className="mt-0.5 text-sm text-gray-500">
+                This drop is locked to one X account.
+              </p>
+            </div>
+          </div>
+
+          {message && (
+            <div className="mt-6 border-l-2 border-gray-300 pl-4">
+              <p className="text-sm leading-6 text-gray-600">&ldquo;{message}&rdquo;</p>
+              <p className="mt-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+                {fromX ? `From @${fromX}` : "From the sender"}
+              </p>
+            </div>
+          )}
+
+          <div className="mt-7">
+            {wrongAccount ? (
+              <>
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  You are signed in as{" "}
+                  <span className="font-semibold">@{lockSession}</span>, but this
+                  drop is reserved for{" "}
+                  <span className="font-semibold">@{lockedTo}</span>.
+                </p>
+                <button
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-gray-200 bg-white py-3.5 text-sm font-semibold text-gray-800 transition hover:border-gray-400"
+                  onClick={async () => {
+                    await fetch("/api/auth/x/me", { method: "DELETE" });
+                    verifyWithX();
+                  }}
+                >
+                  Switch X account
+                </button>
+              </>
+            ) : (
+              <button
+                className="gradient-border-btn flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-semibold text-gray-900"
+                onClick={verifyWithX}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden>
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                Verify it&apos;s me with X
+              </button>
+            )}
+
+            {lockError && (
+              <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">
+                {lockError}
+              </p>
+            )}
+
+            <div className="mt-5 flex items-center justify-center gap-2 text-[11px] text-gray-400">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              We only read your username. Nothing is posted.
+            </div>
+          </div>
         </div>
       </ClaimLayout>
     );

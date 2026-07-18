@@ -11,10 +11,15 @@ export async function GET(req: Request) {
     );
   }
 
-  const origin = new URL(req.url).origin;
+  const url = new URL(req.url);
+  const origin = url.origin;
   const redirectUri = `${origin}/api/auth/x/callback`;
   const { verifier, challenge } = newPkcePair();
   const state = newState();
+
+  // Where to land after the OAuth round trip. Only same-site paths.
+  const next = url.searchParams.get("next") ?? "";
+  const returnTo = next.startsWith("/") && !next.startsWith("//") ? next : "/send";
 
   const authorize = new URL("https://x.com/i/oauth2/authorize");
   authorize.searchParams.set("response_type", "code");
@@ -35,5 +40,6 @@ export async function GET(req: Request) {
   };
   res.cookies.set("gx_pkce", verifier, cookieOpts);
   res.cookies.set("gx_state", state, cookieOpts);
+  res.cookies.set("gx_return", returnTo, cookieOpts);
   return res;
 }

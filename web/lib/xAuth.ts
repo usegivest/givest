@@ -1,4 +1,10 @@
-import { createHmac, randomBytes, createHash } from "node:crypto";
+import {
+  createHmac,
+  randomBytes,
+  createHash,
+  createCipheriv,
+  createDecipheriv,
+} from "node:crypto";
 import { cookies } from "next/headers";
 
 export type XUser = {
@@ -87,6 +93,40 @@ export function verifySenderAttestation(
 ): boolean {
   if (!/^[0-9a-f]{64}$/i.test(sig)) return false;
   return attestSender(claimKey, handle) === sig.toLowerCase();
+}
+
+/**
+ * Recipient lock: the claim key is encrypted with a key derived from the
+ * required X handle. The raw claim key never appears in the link, so the
+ * lock cannot be stripped. Only the server can decrypt, and it only does
+ * so for a session whose handle matches.
+ */
+function lockKey(handle: string): Buffer {
+  return createHmac("sha256", secret())
+    .update(`claimlock|${handle.toLowerCase()}`)
+    .digest();
+}
+
+export function encryptClaimKey(claimPriv: string, handle: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", lockKey(handle), iv);
+  const ct = Buffer.concat([cipher.update(claimPriv, "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ct]).toString("base64url");
+}
+
+export function decryptClaimKey(blob: string, handle: string): string | null {
+  try {
+    const raw = Buffer.from(blob, "base64url");
+    const iv = raw.subarray(0, 12);
+    const tag = raw.subarray(12, 28);
+    const ct = raw.subarray(28);
+    const decipher = createDecipheriv("aes-256-gcm", lockKey(handle), iv);
+    decipher.setAuthTag(tag);
+    const out = Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+    return /^0x[0-9a-fA-F]{64}$/.test(out) ? out : null;
+  } catch {
+    return null;
+  }
 }
 
 /** PKCE helpers */

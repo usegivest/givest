@@ -75,6 +75,8 @@ export default function SendPage() {
   const [customActive, setCustomActive] = useState(false);
   const [message, setMessage] = useState("");
   const [xHandle, setXHandle] = useState("");
+  const [lockEnabled, setLockEnabled] = useState(false);
+  const [lockHandle, setLockHandle] = useState("");
   const [xAuth, setXAuth] = useState<{
     enabled: boolean;
     user: { handle: string; name: string; avatar: string } | null;
@@ -264,6 +266,9 @@ export default function SendPage() {
             : "Enter an amount greater than $0.",
         );
       }
+      if (lockEnabled && !lockHandle.trim().replace(/^@/, "")) {
+        throw new Error("Enter the X handle that should claim this drop.");
+      }
       const wallet = client && address ? { client, address } : await connect();
       const walletClient = "client" in wallet ? wallet.client : client!;
       const from = "address" in wallet ? wallet.address : address!;
@@ -394,7 +399,30 @@ export default function SendPage() {
         const cleanHandle = xHandle.trim().replace(/^@/, "");
         if (cleanHandle) senderPart = `&x=${encodeURIComponent(cleanHandle)}`;
       }
-      const url = `${window.location.origin}/claim#${key.privateKey}${
+
+      // Recipient lock: swap the raw claim key for an encrypted blob that
+      // only the intended X account can unlock via the server.
+      let keyPart: string = key.privateKey;
+      let lockPart = "";
+      if (lockEnabled) {
+        const cleanTo = lockHandle.trim().replace(/^@/, "");
+        try {
+          const res = await fetch("/api/lock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ claimPriv: key.privateKey, handle: cleanTo }),
+          });
+          if (res.ok) {
+            const { blob } = await res.json();
+            keyPart = "locked";
+            lockPart = `&lk=${blob}&to=${encodeURIComponent(cleanTo)}`;
+          }
+        } catch {
+          // fall back to an unlocked link rather than losing the drop
+        }
+      }
+
+      const url = `${window.location.origin}/claim#${keyPart}${lockPart}${
         message ? `&m=${encodeURIComponent(message)}` : ""
       }${senderPart}`;
       setLink(url);
@@ -476,6 +504,20 @@ export default function SendPage() {
               </p>
               <p className="mt-0.5 text-xs text-amber-800/80">
                 Random inside your window. Share the link now - they wait onchain.
+              </p>
+            </div>
+          )}
+
+          {lockEnabled && lockHandle.trim() && link.includes("&lk=") && (
+            <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/80 p-4">
+              <p className="text-[10px] font-semibold tracking-wider text-violet-700/70 uppercase">
+                Locked
+              </p>
+              <p className="mt-1 text-sm font-semibold text-violet-950">
+                Only @{lockHandle.trim().replace(/^@/, "")} can claim
+              </p>
+              <p className="mt-0.5 text-xs text-violet-800/80">
+                Safe to share publicly. They verify with X before claiming.
               </p>
             </div>
           )}
@@ -1044,6 +1086,62 @@ export default function SendPage() {
               </>
             )}
           </div>
+
+          {xAuth.enabled && (
+            <div className="mt-4">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span>
+                  <span className="block text-sm font-semibold tracking-tight text-gray-900">
+                    Lock to one person{" "}
+                    <span className="font-normal text-gray-400">(optional)</span>
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-400">
+                    Only a specific X account can claim, verified by signing in.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={lockEnabled}
+                  onClick={() => setLockEnabled((v) => !v)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                    lockEnabled ? "bg-gray-900" : "bg-gray-200"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                      lockEnabled ? "left-[22px]" : "left-0.5"
+                    }`}
+                  />
+                </button>
+              </label>
+              {lockEnabled && (
+                <>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-400">@</span>
+                    <input
+                      className="input w-full px-4 py-2.5 text-sm"
+                      placeholder="whocanclaim"
+                      value={lockHandle}
+                      maxLength={15}
+                      onChange={(e) =>
+                        setLockHandle(e.target.value.replace(/[^A-Za-z0-9_@]/g, ""))
+                      }
+                    />
+                  </div>
+                  {lockHandle.trim() && (
+                    <p className="mt-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3.5 py-2.5 text-xs text-gray-500">
+                      You can share this link publicly. Only{" "}
+                      <span className="font-semibold text-gray-900">
+                        @{lockHandle.trim().replace(/^@/, "")}
+                      </span>{" "}
+                      can claim it, after verifying with X.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
