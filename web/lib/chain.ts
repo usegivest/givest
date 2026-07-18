@@ -180,6 +180,12 @@ export type StockSwapRoute =
  * Thin direct WETH→stock V3 pools are intentionally excluded - those
  * can quote and still destroy size on low-liquidity ticks.
  */
+/**
+ * Minimum V3 liquidity for a direct WETH/stock pool to count as a route.
+ * Keeps thin junk pools out; HOOD's official pool sits around 1.2e23.
+ */
+const MIN_DIRECT_V3_LIQUIDITY = 5n * 10n ** 21n;
+
 export async function listStockSwapRoutes(
   stock: Address,
 ): Promise<StockSwapRoute[]> {
@@ -187,6 +193,19 @@ export async function listStockSwapRoutes(
 
   const wethUsdg = await bestV3Pool(WETH, USDG);
   const usdgStockV3 = await bestV3Pool(USDG, stock);
+
+  // Direct WETH/stock V3 pool (e.g. HOOD trades straight against WETH).
+  const directV3 = await bestV3Pool(WETH, stock);
+  if (directV3 && directV3.liquidity >= MIN_DIRECT_V3_LIQUIDITY) {
+    routes.push({
+      kind: "v3",
+      path: encodePacked(
+        ["address", "uint24", "address"],
+        [WETH, directV3.fee, stock],
+      ),
+      score: directV3.liquidity,
+    });
+  }
 
   // Deep multi-hop V3 via USDG (only when both legs have real liquidity).
   if (wethUsdg && usdgStockV3) {
