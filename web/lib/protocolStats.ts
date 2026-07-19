@@ -48,6 +48,9 @@ type ExplorerLog = {
   data?: string;
 };
 
+/** Per-request timeout so a slow explorer can never hang SSR. */
+const FETCH_TIMEOUT_MS = 8_000;
+
 async function fetchAddressLogs(address: Address): Promise<ExplorerLog[]> {
   const items: ExplorerLog[] = [];
   let params: Record<string, string | number> | null = null;
@@ -62,6 +65,7 @@ async function fetchAddressLogs(address: Address): Promise<ExplorerLog[]> {
     const res = await fetch(url.toString(), {
       headers: { "User-Agent": "Givest/1.0" },
       cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) break;
     const data = (await res.json()) as {
@@ -83,6 +87,7 @@ async function fetchEthIn(address: Address): Promise<number> {
   const res = await fetch(url, {
     headers: { "User-Agent": "Givest/1.0" },
     cache: "no-store",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!res.ok) return 0;
   const data = (await res.json()) as {
@@ -106,7 +111,55 @@ export type ProtocolStats = {
   pricedDropCount: number;
 };
 
-export async function getProtocolStats(): Promise<ProtocolStats> {
+/**
+ * In-memory cache with stale-while-revalidate so SSR never blocks on
+ * the explorer. Fresh for 2 minutes; stale values are served instantly
+ * while a background refresh runs.
+ */
+const CACHE_FRESH_MS = 120_000;
+
+let cached: { at: number; stats: ProtocolStats } | null = null;
+let inflight: Promise<ProtocolStats> | null = null;
+
+function refresh(): Promise<ProtocolStats> {
+  inflight ??= computeProtocolStats()
+    .then((stats) => {
+      cached = { at: Date.now(), stats };
+      return stats;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
+/**
+ * Returns protocol stats, waiting at most `maxWaitMs` for a cold
+ * computation. Pages should use a short wait and fall back to their
+ * defaults; the stats API can afford to wait longer.
+ */
+export async function getProtocolStats(
+  maxWaitMs = 8_000,
+): Promise<ProtocolStats> {
+  const fresh = cached && Date.now() - cached.at < CACHE_FRESH_MS;
+  const promise = fresh ? null : refresh();
+
+  // Serve cached (possibly stale) values instantly; refresh runs in
+  // the background and updates the cache for the next request.
+  if (cached) return cached.stats;
+
+  return Promise.race([
+    promise!,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("protocol stats timed out")),
+        maxWaitMs,
+      ),
+    ),
+  ]);
+}
+
+async function computeProtocolStats(): Promise<ProtocolStats> {
   const priceCache = new Map<string, number | null>();
 
   async function priceFor(token: Address): Promise<number | null> {

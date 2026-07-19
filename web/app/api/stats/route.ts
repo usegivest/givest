@@ -4,12 +4,13 @@ import { formatVolumeUsd, getProtocolStats } from "@/lib/protocolStats";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
 
 export async function GET() {
   try {
-    const stats = await getProtocolStats();
+    const stats = await getProtocolStats(45_000);
     return NextResponse.json(
       {
         ...stats,

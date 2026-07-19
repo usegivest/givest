@@ -7,13 +7,14 @@ import { ESCROW_ADDRESSES, CONTRACT_ADDRESS } from "@/lib/config";
 import { formatVolumeUsd, getProtocolStats } from "@/lib/protocolStats";
 
 export const metadata: Metadata = {
-  title: "Volume · Givest",
+  title: "Volume — Givest",
   description:
     "Verify Givest onchain volume on Robinhood Chain. Public escrow contracts, creates, and claims.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const EXPLORER = "https://robinhoodchain.blockscout.com";
 
@@ -67,7 +68,7 @@ export default async function VolumePage() {
   let dropCount = 0;
 
   try {
-    const stats = await getProtocolStats();
+    const stats = await getProtocolStats(3_000);
     volumeLabel = formatVolumeUsd(stats.volumeUsd);
     stockVolumeLabel = formatVolumeUsd(stats.stockVolumeUsd);
     dropCount = stats.dropCount;
