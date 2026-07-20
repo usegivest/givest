@@ -17,6 +17,7 @@ import {
 } from "@/lib/config";
 import { claimTweetCode, decryptClaimKey, lockConfigured, readSession } from "@/lib/xAuth";
 import { extractTweetId, fetchPublicTweet } from "@/lib/tweetVerify";
+import { fetchTokenInfo } from "@/lib/tokenInfo";
 
 export const runtime = "nodejs";
 
@@ -160,7 +161,9 @@ export async function POST(req: Request) {
     });
     await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-    const stock = stockByAddress(token as Address);
+    const stock =
+      stockByAddress(token as Address) ??
+      (await fetchTokenInfo(token as Address));
     return NextResponse.json({
       txHash,
       symbol: stock?.symbol ?? null,

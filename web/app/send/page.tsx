@@ -12,7 +12,9 @@ import {
   USDG,
   PROTOCOL_FEE,
   stockDropsAbi,
+  type Stock,
 } from "@/lib/config";
+import { fetchTokenInfo, tokenInfoToStock } from "@/lib/tokenInfo";
 import { newClaimKey, publicClient } from "@/lib/chain";
 import {
   formatShares,
@@ -69,6 +71,14 @@ export default function SendPage() {
   const [symbol, setSymbol] = useState("NVDA");
   const [stockQuery, setStockQuery] = useState("");
   const [stockLimit, setStockLimit] = useState(12);
+  const [customToken, setCustomToken] = useState<Stock | null>(null);
+  const [customLookup, setCustomLookup] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "notfound" }
+    | { status: "unsupported"; decimals: number | null }
+    | { status: "found"; token: Stock }
+  >({ status: "idle" });
   const [amountMode, setAmountMode] = useState<AmountMode>("usd");
   const [usdInput, setUsdInput] = useState("10");
   const [sharesInput, setSharesInput] = useState("1");
@@ -98,16 +108,35 @@ export default function SendPage() {
     feeStatusFromBps(PROTOCOL_FEE.baseBps),
   );
 
-  const stock = useMemo(() => STOCKS.find((s) => s.symbol === symbol)!, [symbol]);
+  const allStocks = useMemo(
+    () => (customToken ? [customToken, ...STOCKS] : STOCKS),
+    [customToken],
+  );
+  const stock = useMemo(
+    () =>
+      (customToken && symbol === customToken.address ? customToken : null) ??
+      STOCKS.find((s) => s.symbol === symbol) ??
+      STOCKS[0],
+    [symbol, customToken],
+  );
+  const isCustomStock =
+    customToken !== null &&
+    stock.address.toLowerCase() === customToken.address.toLowerCase() &&
+    !STOCKS.some(
+      (s) => s.address.toLowerCase() === stock.address.toLowerCase(),
+    );
+  const queryAddress = /^0x[a-fA-F0-9]{40}$/.test(stockQuery.trim())
+    ? stockQuery.trim()
+    : null;
   const filteredStocks = useMemo(() => {
     const q = stockQuery.trim().toLowerCase();
-    if (!q) return STOCKS;
-    return STOCKS.filter(
+    if (!q || queryAddress) return allStocks;
+    return allStocks.filter(
       (s) =>
         s.symbol.toLowerCase().includes(q) ||
         s.name.toLowerCase().includes(q),
     );
-  }, [stockQuery]);
+  }, [stockQuery, queryAddress, allStocks]);
   const visibleStocks = useMemo(
     () => filteredStocks.slice(0, stockQuery.trim() ? Math.max(stockLimit, 24) : stockLimit),
     [filteredStocks, stockLimit, stockQuery],
@@ -124,6 +153,50 @@ export default function SendPage() {
   useEffect(() => {
     readEthUsd().then(setEthUsd);
   }, []);
+
+  useEffect(() => {
+    if (!queryAddress) {
+      setCustomLookup({ status: "idle" });
+      return;
+    }
+    const listed = allStocks.find(
+      (s) => s.address.toLowerCase() === queryAddress.toLowerCase(),
+    );
+    if (listed) {
+      setCustomLookup({ status: "found", token: listed });
+      return;
+    }
+    let cancelled = false;
+    setCustomLookup({ status: "loading" });
+    fetchTokenInfo(queryAddress).then((info) => {
+      if (cancelled) return;
+      if (!info) {
+        setCustomLookup({ status: "notfound" });
+      } else if (info.decimals !== 18) {
+        setCustomLookup({ status: "unsupported", decimals: info.decimals });
+      } else {
+        setCustomLookup({ status: "found", token: tokenInfoToStock(info) });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryAddress]);
+
+  function selectCustomToken(token: Stock) {
+    const listed = STOCKS.find(
+      (s) => s.address.toLowerCase() === token.address.toLowerCase(),
+    );
+    if (listed) {
+      setSymbol(listed.symbol);
+    } else {
+      setCustomToken(token);
+      setSymbol(token.address);
+    }
+    setStockQuery("");
+    setStockLimit(12);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -626,46 +699,117 @@ export default function SendPage() {
                 setStockQuery(e.target.value);
                 setStockLimit(12);
               }}
-              placeholder={`Search ${STOCKS.length} stocks`}
+              placeholder={`Search ${STOCKS.length} stocks or paste a contract address`}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400 focus:bg-white"
             />
           </label>
 
-          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
-            {visibleStocks.map((s) => {
-              const selected = s.symbol === symbol;
-              return (
+          {queryAddress ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-3">
+              {customLookup.status === "loading" && (
+                <p className="text-xs text-gray-400">Looking up contract…</p>
+              )}
+              {customLookup.status === "notfound" && (
+                <p className="text-xs text-red-600">
+                  No ERC-20 token found at that address.
+                </p>
+              )}
+              {customLookup.status === "unsupported" && (
+                <p className="text-xs text-red-600">
+                  That token uses {customLookup.decimals ?? "unknown"} decimals.
+                  Only 18-decimal tokens are supported.
+                </p>
+              )}
+              {customLookup.status === "found" && (
                 <button
-                  key={s.symbol}
                   type="button"
-                  onClick={() => setSymbol(s.symbol)}
-                  className={`group flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl border text-[10px] font-semibold transition ${
-                    selected
-                      ? "border-gray-900 bg-gray-900 text-white shadow-sm"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900"
-                  }`}
+                  onClick={() => selectCustomToken(customLookup.token)}
+                  className="flex w-full items-center gap-3 text-left"
                 >
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-md ${selected ? "bg-white" : "bg-gray-50"}`}>
-                    <StockLogo symbol={s.symbol} size={15} />
+                  <StockLogo
+                    symbol={customLookup.token.symbol}
+                    size={32}
+                    src={customLookup.token.icon}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-gray-900">
+                      {customLookup.token.symbol}
+                      <span className="ml-2 font-normal text-gray-400">
+                        {customLookup.token.name}
+                      </span>
+                    </span>
+                    <span className="block truncate font-mono text-[11px] text-gray-400">
+                      {customLookup.token.address.slice(0, 6)}…
+                      {customLookup.token.address.slice(-4)}
+                    </span>
                   </span>
-                  {s.symbol}
+                  <span className="shrink-0 rounded-full bg-gray-900 px-3 py-1.5 text-[11px] font-semibold text-white">
+                    Use
+                  </span>
                 </button>
-              );
-            })}
-          </div>
-          {filteredStocks.length === 0 && (
-            <p className="mt-2 text-[11px] text-gray-400">No stocks match that search.</p>
-          )}
-          {hasMoreStocks && (
-            <button
-              type="button"
-              onClick={() => setStockLimit((n) => n + 18)}
-              className="mt-2.5 w-full rounded-full border border-gray-200 bg-white py-2 text-xs font-semibold text-gray-600 transition hover:border-gray-400 hover:text-gray-900"
-            >
-              More stocks ({filteredStocks.length - visibleStocks.length} left)
-            </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                {visibleStocks.map((s) => {
+                  const custom =
+                    customToken !== null && s.address === customToken.address;
+                  const key = custom ? s.address : s.symbol;
+                  const selected = symbol === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSymbol(key)}
+                      className={`group flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-[10px] font-semibold transition ${
+                        selected
+                          ? "border-gray-900 bg-gray-900 text-white shadow-sm"
+                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900"
+                      }`}
+                    >
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-md ${selected ? "bg-white" : "bg-gray-50"}`}>
+                        <StockLogo symbol={s.symbol} size={15} src={s.icon} />
+                      </span>
+                      <span className="max-w-full truncate">{s.symbol}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {filteredStocks.length === 0 && (
+                <p className="mt-2 text-[11px] text-gray-400">
+                  No match. Paste a contract address (0x…) to send any token on
+                  Robinhood Chain.
+                </p>
+              )}
+              {hasMoreStocks && (
+                <button
+                  type="button"
+                  onClick={() => setStockLimit((n) => n + 18)}
+                  className="mt-2.5 w-full rounded-full border border-gray-200 bg-white py-2 text-xs font-semibold text-gray-600 transition hover:border-gray-400 hover:text-gray-900"
+                >
+                  More stocks ({filteredStocks.length - visibleStocks.length} left)
+                </button>
+              )}
+            </>
           )}
           <p className="mt-2 text-[11px] text-gray-400">{stock.name}</p>
+          {isCustomStock && (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
+              <span className="font-semibold">Unverified token.</span> This is
+              not an official Robinhood stock token. Anyone can create a token
+              with any name, so verify the contract yourself on{" "}
+              <a
+                href={`https://robinhoodchain.blockscout.com/token/${stock.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold underline underline-offset-2"
+              >
+                Blockscout
+              </a>{" "}
+              before sending.
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-gray-200/60 bg-white/95 p-5 shadow-lg backdrop-blur-md">

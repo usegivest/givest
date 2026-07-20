@@ -7,10 +7,13 @@ export default function StockLogo({
   symbol,
   size = 24,
   className = "",
+  src,
 }: {
   symbol: string;
   size?: number;
   className?: string;
+  /** Optional remote logo URL (custom tokens). Defaults to the bundled /logos file. */
+  src?: string | null;
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -28,10 +31,11 @@ export default function StockLogo({
 
   return (
     <Image
-      src={`/logos/${symbol}.png`}
+      src={src || `/logos/${symbol}.png`}
       alt={`${symbol} logo`}
       width={size}
       height={size}
+      unoptimized={Boolean(src)}
       className={`object-contain ${symbol === "SPCX" ? "invert" : ""} ${className}`}
       onError={() => setFailed(true)}
     />

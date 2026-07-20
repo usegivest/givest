@@ -3,6 +3,7 @@ import { formatEther, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { publicClient } from "@/lib/chain";
 import { CONTRACT_ADDRESS, stockByAddress, stockDropsAbi } from "@/lib/config";
+import { fetchTokenInfo } from "@/lib/tokenInfo";
 import { decryptClaimKey, lockConfigured } from "@/lib/xAuth";
 
 export const runtime = "nodejs";
@@ -45,7 +46,9 @@ export async function POST(req: Request) {
       functionName: "drops",
       args: [claimKey],
     });
-    const stock = stockByAddress(token as Address);
+    const stock =
+      stockByAddress(token as Address) ??
+      (await fetchTokenInfo(token as Address));
     return NextResponse.json({
       symbol: stock?.symbol ?? null,
       name: stock?.name ?? null,

@@ -61,6 +61,8 @@ export type Stock = {
   address: Address;
   /** Chainlink price feed proxy (USD, 8 decimals). Null if no feed exists yet. */
   feed: Address | null;
+  /** Remote logo URL (custom tokens). Listed stocks use /logos/{symbol}.png. */
+  icon?: string | null;
 };
 
 /**

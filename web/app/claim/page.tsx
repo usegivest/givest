@@ -10,7 +10,9 @@ import {
   CONTRACT_ADDRESS,
   stockByAddress,
   stockDropsAbi,
+  type Stock,
 } from "@/lib/config";
+import { fetchTokenInfo, tokenInfoToStock } from "@/lib/tokenInfo";
 import { publicClient, signClaim } from "@/lib/chain";
 import { readUsdPrice } from "@/lib/prices";
 import { useWallet } from "@/lib/wallet";
@@ -323,6 +325,20 @@ export default function ClaimPage() {
     })();
   }, [claimKeyAddress]);
 
+  // Custom tokens (sent by contract address) are not in the STOCKS list, so
+  // resolve their symbol and logo from Blockscout instead.
+  const [fallbackStock, setFallbackStock] = useState<Stock | null>(null);
+  useEffect(() => {
+    if (!drop || stockByAddress(drop.token)) return;
+    let cancelled = false;
+    fetchTokenInfo(drop.token).then((info) => {
+      if (!cancelled && info) setFallbackStock(tokenInfoToStock(info));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [drop]);
+
   async function claimTo(addr: Address) {
     if (!claimPriv || !claimKeyAddress) return;
     setClaiming(true);
@@ -360,7 +376,7 @@ export default function ClaimPage() {
     );
   }
 
-  const stock = drop ? stockByAddress(drop.token) : null;
+  const stock = drop ? (stockByAddress(drop.token) ?? fallbackStock) : null;
   const shares = drop ? Number(formatEther(drop.amountPerClaim)) : 0;
   const remainingSlots = drop ? drop.maxClaims - drop.claimsMade : 0;
 
@@ -732,7 +748,7 @@ export default function ClaimPage() {
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white ring-1 ring-gray-200">
                 {stock ? (
-                  <StockLogo symbol={stock.symbol} size={27} />
+                  <StockLogo symbol={stock.symbol} size={27} src={stock.icon} />
                 ) : (
                   <Gift className="h-5 w-5 text-gray-700" />
                 )}
