@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, parseEther } from "viem";
-import { ArrowUpRight, Check, Copy, CreditCard, Link2, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Link2, ShieldCheck, Wallet } from "lucide-react";
 import EditorialPageShell from "@/components/EditorialPageShell";
 import StockLogo from "@/components/StockLogo";
 import {
@@ -97,8 +97,6 @@ export default function SendPage() {
   const [fee, setFee] = useState<FeeStatus>(() =>
     feeStatusFromBps(PROTOCOL_FEE.baseBps),
   );
-  const [onrampAvailable, setOnrampAvailable] = useState(false);
-  const [onrampOpening, setOnrampOpening] = useState(false);
 
   const stock = useMemo(() => STOCKS.find((s) => s.symbol === symbol)!, [symbol]);
   const filteredStocks = useMemo(() => {
@@ -125,29 +123,7 @@ export default function SendPage() {
 
   useEffect(() => {
     readEthUsd().then(setEthUsd);
-    fetch("/api/onramp")
-      .then((r) => r.json())
-      .then((d) => setOnrampAvailable(Boolean(d.enabled)))
-      .catch(() => setOnrampAvailable(false));
   }, []);
-
-  async function openOnramp() {
-    if (!address || onrampOpening) return;
-    setOnrampOpening(true);
-    try {
-      // Small buffer on top of the drop size so fees and gas are covered.
-      const target = Math.max(Math.ceil(usd * 1.08) + 3, 20);
-      const res = await fetch(
-        `/api/onramp?address=${address}&usd=${target}`,
-      );
-      const data = await res.json();
-      if (data.url) {
-        window.open(data.url, "moonpay", "width=470,height=740,noopener");
-      }
-    } finally {
-      setOnrampOpening(false);
-    }
-  }
 
   useEffect(() => {
     let cancelled = false;
@@ -1197,22 +1173,6 @@ export default function SendPage() {
                   : `Create ~$${usd} ${stock.symbol} drop`
                 : "Connect wallet to continue"}
           </button>
-
-          {onrampAvailable && address && (
-            <button
-              type="button"
-              onClick={openOnramp}
-              disabled={onrampOpening}
-              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-gray-200 py-2.5 text-xs font-medium text-gray-600 transition hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
-            >
-              {onrampOpening ? (
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-600" />
-              ) : (
-                <CreditCard className="h-3.5 w-3.5" />
-              )}
-              Need ETH? Buy with card or Apple Pay
-            </button>
-          )}
 
           <div className="mt-3 flex items-center justify-center gap-2 text-[10px] text-gray-400">
             <ShieldCheck className="h-3.5 w-3.5" />
