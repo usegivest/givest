@@ -10,6 +10,7 @@ const LINKS = [
   { label: "Home", href: "/" },
   { label: "Send", href: "/send" },
   { label: "Claim", href: "/claim" },
+  { label: "Token", href: "/token" },
   { label: "Volume", href: "/volume" },
   { label: "Roadmap", href: "/roadmap" },
   { label: "Docs", href: "/docs" },

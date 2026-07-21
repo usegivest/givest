@@ -70,6 +70,7 @@ export type Stock = {
  * Thin V3-only names are excluded so large sends cannot route through junk pools.
  */
 export const STOCKS: Stock[] = [
+  { symbol: "GIVEST", name: "Givest", address: GIVEST_TOKEN, feed: null },
   { symbol: "NVDA", name: "NVIDIA", address: "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec", feed: "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15" },
   { symbol: "AAPL", name: "Apple", address: "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9", feed: "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0" },
   { symbol: "TSLA", name: "Tesla", address: "0x322f0929c4625ed5bad873c95208d54e1c003b2d", feed: "0x4A1166a659A55625345e9515b32adECea5547C38" },
