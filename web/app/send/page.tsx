@@ -41,7 +41,21 @@ const SHARE_PRESETS = [0.1, 0.5, 1, 2, 5];
 const SLIPPAGE = 0.96;
 
 type AmountMode = "usd" | "shares";
-type DropMode = "normal" | "giveaway";
+type DropMode = "normal" | "giveaway" | "scheduled";
+
+/** Presets for scheduled drops. */
+const SCHEDULE_PRESETS = [
+  { label: "Tomorrow", days: 1 },
+  { label: "In a week", days: 7 },
+  { label: "In a month", days: 30 },
+  { label: "In a year", days: 365 },
+] as const;
+
+/** Format a Date for a datetime-local input in local time. */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 type QuoteState =
   | { status: "idle" }
@@ -93,6 +107,9 @@ export default function SendPage() {
   }>({ enabled: false, user: null });
   const [dropMode, setDropMode] = useState<DropMode>("normal");
   const [giveawayWindowSec, setGiveawayWindowSec] = useState(300);
+  const [scheduleAtInput, setScheduleAtInput] = useState(() =>
+    toLocalInputValue(new Date(Date.now() + 86400_000)),
+  );
   const [splits, setSplits] = useState(1);
   const [phase, setPhase] = useState<Phase>("form");
   const [error, setError] = useState<string | null>(null);
@@ -377,14 +394,29 @@ export default function SendPage() {
       if (minOut <= 0n) {
         throw new Error("Quote too small. Try a different amount or stock.");
       }
-      const expiresAt = Math.floor(Date.now() / 1000) + EXPIRY_DAYS * 86400;
       const nowSec = Math.floor(Date.now() / 1000);
       // Giveaway: unlock at a random second inside the window you set.
+      // Scheduled: unlock at the exact date the sender picked.
       // Normal: claimable immediately.
-      const unlockAt =
-        dropMode === "giveaway"
-          ? nowSec + 1 + Math.floor(Math.random() * giveawayWindowSec)
-          : nowSec;
+      let unlockAt = nowSec;
+      if (dropMode === "giveaway") {
+        unlockAt = nowSec + 1 + Math.floor(Math.random() * giveawayWindowSec);
+      } else if (dropMode === "scheduled") {
+        const picked = Math.floor(new Date(scheduleAtInput).getTime() / 1000);
+        if (!Number.isFinite(picked)) {
+          throw new Error("Pick a valid unlock date and time.");
+        }
+        if (picked < nowSec + 300) {
+          throw new Error("The unlock time must be at least 5 minutes from now.");
+        }
+        if (picked > nowSec + 5 * 365 * 86400) {
+          throw new Error("The unlock time can be at most 5 years from now.");
+        }
+        unlockAt = picked;
+      }
+      // Scheduled gifts stay claimable for EXPIRY_DAYS after they open,
+      // so a gift set for next year does not expire before it unlocks.
+      const expiresAt = unlockAt + EXPIRY_DAYS * 86400;
       setClaimableAt(unlockAt);
 
       let hash: `0x${string}`;
@@ -527,7 +559,9 @@ export default function SendPage() {
         subtitle={
           dropMode === "giveaway" && claimableAt
             ? `Giveaway locked until ${new Date(claimableAt * 1000).toLocaleTimeString()}. Share the link anytime.`
-            : `Your ${stock.symbol} tokens are now secured in escrow until the link is claimed.`
+            : dropMode === "scheduled" && claimableAt
+              ? `Sealed until ${new Date(claimableAt * 1000).toLocaleString()}. Share the link now - it opens exactly then.`
+              : `Your ${stock.symbol} tokens are now secured in escrow until the link is claimed.`
         }
         media="/media/send-drop-v2.jpg"
         video="/media/send-drop-v2.mp4"
@@ -577,6 +611,21 @@ export default function SendPage() {
               </p>
               <p className="mt-0.5 text-xs text-amber-800/80">
                 Random inside your window. Share the link now - they wait onchain.
+              </p>
+            </div>
+          )}
+
+          {dropMode === "scheduled" && claimableAt && (
+            <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50/80 p-4">
+              <p className="text-[10px] font-semibold tracking-wider text-sky-700/70 uppercase">
+                Scheduled unlock
+              </p>
+              <p className="mt-1 text-sm font-semibold text-sky-950">
+                Opens {new Date(claimableAt * 1000).toLocaleString()}
+              </p>
+              <p className="mt-0.5 text-xs text-sky-800/80">
+                The date is enforced onchain. Share the link now - it cannot be
+                claimed a second early.
               </p>
             </div>
           )}
@@ -1052,13 +1101,24 @@ export default function SendPage() {
               >
                 Giveaway
               </button>
+              <button
+                type="button"
+                onClick={() => setDropMode("scheduled")}
+                className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                  dropMode === "scheduled"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                Schedule
+              </button>
             </div>
           </div>
           {dropMode === "normal" ? (
             <p className="text-sm leading-relaxed text-gray-500">
               Claim opens instantly. Best for gifts and DMs.
             </p>
-          ) : (
+          ) : dropMode === "giveaway" ? (
             <div className="space-y-3">
               <p className="text-sm leading-relaxed text-gray-500">
                 Share the link now - claiming unlocks at a random time inside your
@@ -1086,6 +1146,47 @@ export default function SendPage() {
                   ? `${giveawayWindowSec / 60} min`
                   : `${giveawayWindowSec}s`}
                 . Exact time is set onchain when you create.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm leading-relaxed text-gray-500">
+                Send it to the future. Pick the exact date and time the claim
+                opens - a birthday, a graduation, next New Year. The unlock is
+                enforced onchain, so not even you can open it early.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {SCHEDULE_PRESETS.map((p) => {
+                  const value = toLocalInputValue(
+                    new Date(Date.now() + p.days * 86400_000),
+                  );
+                  const selected = scheduleAtInput === value;
+                  return (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setScheduleAtInput(value)}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
+                        selected
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                type="datetime-local"
+                value={scheduleAtInput}
+                min={toLocalInputValue(new Date(Date.now() + 10 * 60_000))}
+                onChange={(e) => setScheduleAtInput(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 focus:bg-white"
+              />
+              <p className="text-[11px] text-gray-400">
+                The gift stays claimable for {EXPIRY_DAYS} days after it opens.
+                Unclaimed drops can be refunded after that.
               </p>
             </div>
           )}

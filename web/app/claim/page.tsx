@@ -723,8 +723,20 @@ export default function ClaimPage() {
   const expired = nowSec >= drop.expiresAt;
   const locked = nowSec < drop.claimableAt;
   const unlockIn = Math.max(0, drop.claimableAt - nowSec);
+  // Long locks are scheduled gifts; short ones are giveaway randomizers.
+  const scheduled = locked && unlockIn > 3600;
 
   function formatCountdown(sec: number) {
+    if (sec >= 86400) {
+      const d = Math.floor(sec / 86400);
+      const h = Math.floor((sec % 86400) / 3600);
+      return `${d}d ${h}h`;
+    }
+    if (sec >= 3600) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     if (m <= 0) return `${s}s`;
@@ -737,9 +749,11 @@ export default function ClaimPage() {
       title="A piece of the future."
       accent="Now make it yours."
       subtitle={
-        locked
-          ? "This is a giveaway drop. Claiming unlocks at a random time - hang tight."
-          : "Review the gift below, then choose your wallet. The claim is private, onchain, and free for you."
+        scheduled
+          ? `The sender sealed this gift until ${new Date(drop.claimableAt * 1000).toLocaleString()}. It opens exactly then - onchain.`
+          : locked
+            ? "This is a giveaway drop. Claiming unlocks at a random time - hang tight."
+            : "Review the gift below, then choose your wallet. The claim is private, onchain, and free for you."
       }
     >
       <div className="overflow-hidden rounded-2xl border border-gray-200/60 bg-white/95 shadow-lg backdrop-blur-md">
@@ -843,15 +857,15 @@ export default function ClaimPage() {
           ) : locked ? (
             <div className="rounded-2xl border border-amber-100 bg-amber-50/90 px-5 py-6 text-center">
               <p className="text-[10px] font-semibold tracking-[0.16em] text-amber-700/70 uppercase">
-                Giveaway unlocks in
+                {scheduled ? "Sealed · opens in" : "Giveaway unlocks in"}
               </p>
               <p className="mt-2 text-4xl font-medium tracking-tighter text-amber-950">
                 {formatCountdown(unlockIn)}
               </p>
               <p className="mt-2 text-sm text-amber-800/80">
-                Opens around{" "}
-                {new Date(drop.claimableAt * 1000).toLocaleTimeString()}. Stay on
-                this page.
+                {scheduled
+                  ? `Opens ${new Date(drop.claimableAt * 1000).toLocaleString()}. Bookmark this link and come back.`
+                  : `Opens around ${new Date(drop.claimableAt * 1000).toLocaleTimeString()}. Stay on this page.`}
               </p>
             </div>
           ) : (
