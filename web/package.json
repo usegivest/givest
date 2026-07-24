@@ -1,5 +1,5 @@
 {
-  "name": "givest-web",
+  "name": "stockdrops-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,6 +13,7 @@
     "next": "^15.5.12",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-qr-code": "^2.2.0",
     "viem": "^2.45.1"
   },
   "devDependencies": {

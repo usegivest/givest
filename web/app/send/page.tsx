@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, parseEther } from "viem";
-import { ArrowUpRight, Check, Copy, Link2, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Download, Link2, QrCode, ShieldCheck, Wallet } from "lucide-react";
+import QRCode from "react-qr-code";
 import EditorialPageShell from "@/components/EditorialPageShell";
 import StockLogo from "@/components/StockLogo";
 import {
@@ -683,6 +684,13 @@ export default function SendPage() {
               )}
             </button>
           </div>
+
+          <GiftCardQr
+            link={link}
+            symbol={stock.symbol}
+            usd={usd}
+            opensAt={dropMode === "scheduled" ? claimableAt : null}
+          />
 
           <div className="mt-5 flex items-center justify-between">
             <button
@@ -1452,6 +1460,111 @@ function CopyLinkButton({ link }: { link: string }) {
         </>
       )}
     </button>
+  );
+}
+
+/**
+ * Printable QR gift card for a claim link. Screenshot it, print it, put it
+ * in a birthday card - scanning opens the claim page.
+ */
+function GiftCardQr({
+  link,
+  symbol,
+  usd,
+  opensAt,
+}: {
+  link: string;
+  symbol: string;
+  usd: number;
+  opensAt: number | null;
+}) {
+  const [open, setOpen] = useState(false);
+
+  async function download() {
+    const svg = document.getElementById("gift-card-qr");
+    if (!svg) return;
+    const xml = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    const size = 880;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject();
+      img.src = `data:image/svg+xml;base64,${btoa(xml)}`;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size + 220;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 90, 150, size - 180, size - 180);
+    ctx.fillStyle = "#111827";
+    ctx.font = "600 44px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`$${usd} of ${symbol} inside`, canvas.width / 2, 92);
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "500 30px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.fillText(
+      opensAt
+        ? `Scan to claim · opens ${new Date(opensAt * 1000).toLocaleDateString()}`
+        : "Scan with your phone camera to claim",
+      canvas.width / 2,
+      size + 40,
+    );
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "600 26px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.fillText("USEGIVEST.APP", canvas.width / 2, size + 110);
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `givest-gift-${symbol.toLowerCase()}.png`;
+    a.click();
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-gray-100 bg-white p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <QrCode className="h-4 w-4" />
+          Gift card QR
+        </span>
+        <span className="text-xs font-medium text-gray-400">
+          {open ? "Hide" : "Print it, gift it"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="mt-4 flex flex-col items-center">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5">
+            <QRCode
+              id="gift-card-qr"
+              value={link}
+              size={196}
+              level="M"
+              fgColor="#111827"
+            />
+          </div>
+          <p className="mt-3 text-center text-xs leading-relaxed text-gray-500">
+            Scanning opens the claim page. Print it and put it in a real
+            birthday card
+            {opensAt
+              ? ` - it stays sealed until ${new Date(opensAt * 1000).toLocaleDateString()}.`
+              : "."}
+          </p>
+          <button
+            type="button"
+            onClick={download}
+            className="mt-3 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-gray-400 hover:text-gray-900"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download as image
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
