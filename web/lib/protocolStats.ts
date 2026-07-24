@@ -51,6 +51,23 @@ type ExplorerLog = {
 /** Per-request timeout so a slow explorer can never hang SSR. */
 const FETCH_TIMEOUT_MS = 8_000;
 
+/** Fetch with one retry - the explorer occasionally drops requests. */
+async function fetchWithRetry(url: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Givest/1.0" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (res.ok || attempt >= 1) return res;
+    } catch (e) {
+      if (attempt >= 1) throw e;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
 async function fetchAddressLogs(address: Address): Promise<ExplorerLog[]> {
   const items: ExplorerLog[] = [];
   let params: Record<string, string | number> | null = null;
@@ -62,11 +79,7 @@ async function fetchAddressLogs(address: Address): Promise<ExplorerLog[]> {
         url.searchParams.set(k, String(v));
       }
     }
-    const res = await fetch(url.toString(), {
-      headers: { "User-Agent": "Givest/1.0" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+    const res = await fetchWithRetry(url.toString());
     if (!res.ok) break;
     const data = (await res.json()) as {
       items?: ExplorerLog[];
@@ -84,11 +97,7 @@ async function fetchAddressLogs(address: Address): Promise<ExplorerLog[]> {
 /** Sum native ETH successfully sent into an escrow contract. */
 async function fetchEthIn(address: Address): Promise<number> {
   const url = `${EXPLORER}/api?module=account&action=txlist&address=${address}&sort=asc`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Givest/1.0" },
-    cache: "no-store",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
+  const res = await fetchWithRetry(url);
   if (!res.ok) return 0;
   const data = (await res.json()) as {
     result?: Array<{ value?: string; isError?: string }>;
@@ -218,6 +227,13 @@ async function computeProtocolStats(): Promise<ProtocolStats> {
       stockVolumeUsd += shares * price;
       pricedDropCount += 1;
     }
+  }
+
+  // The protocol has live drops, so an all-zero result can only mean
+  // every explorer call failed. Throw instead of poisoning the cache -
+  // the last good stats keep being served while we retry.
+  if (dropCount === 0 && ethInTotal === 0) {
+    throw new Error("explorer returned no data for any escrow");
   }
 
   return {
