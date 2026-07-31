@@ -78,6 +78,7 @@ Tests in `contracts/test/StockDrops.t.sol` run against a fork of Robinhood Chain
 ```
 contracts/   Foundry project - StockDrops.sol escrow + fork tests
 web/         Next.js app - send flow, claim page, relayer + stats API
+app/         iOS app (React Native / Expo) - embedded wallet, send + gasless claim
 docs/        Screenshots and assets for this README
 ```
 
@@ -99,6 +100,16 @@ cp .env.example .env.local   # fill in contract address + relayer key
 npm install
 npm run dev
 ```
+
+### iOS app
+
+```bash
+cd app
+npm install
+npx expo start   # press i for the simulator, or scan the QR with Expo Go
+```
+
+The app generates an embedded wallet on-device (Keychain via `expo-secure-store`), sends drops directly onchain and claims gaslessly through the relayer. See [`app/README.md`](app/README.md) for the full architecture.
 
 ### Local end-to-end demo
 
