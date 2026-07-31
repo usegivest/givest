@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -74,12 +75,22 @@ export default function HomeScreen() {
   }, [load]);
 
   // Refresh whenever the tab regains focus and poll while it is visible,
-  // so a freshly funded wallet shows up without a manual pull.
+  // so a freshly funded wallet shows up without a manual pull. Polling
+  // pauses while the app is backgrounded (no wasted RPC calls or battery)
+  // and refreshes immediately when it comes back to the foreground.
   useFocusEffect(
     useCallback(() => {
       load();
-      const id = setInterval(load, 8000);
-      return () => clearInterval(id);
+      const id = setInterval(() => {
+        if (AppState.currentState === "active") load();
+      }, 8000);
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state === "active") load();
+      });
+      return () => {
+        clearInterval(id);
+        sub.remove();
+      };
     }, [load]),
   );
 
