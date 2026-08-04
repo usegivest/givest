@@ -68,7 +68,7 @@ eas submit --platform ios
 - [x] Privacy policy URL: `https://usegivest.app`
 - [x] Encryption exemption set (`ITSAppUsesNonExemptEncryption=false`)
 - [x] Embedded wallet, send, claim, activity and profile flows verified end-to-end
-- [x] Submitted to Apple App Store Review
+- [x] Version 1.1 submitted to Apple App Store Review
 
 Positioning: the easiest way to gift real stocks. Review note: tokens are stock *tokens* on Robinhood Chain (economic exposure, not shares); the app holds a self-custodied wallet.
 
