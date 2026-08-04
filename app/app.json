@@ -9,9 +9,12 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "app.usegivest.givest",
+      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Givest uses the camera to scan claim QR codes.",
+        "NSFaceIDUsageDescription": "Givest can use Face ID to unlock your wallet backup."
       }
     },
     "android": {

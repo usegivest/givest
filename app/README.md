@@ -63,12 +63,14 @@ eas submit --platform ios
 
 ### App Store checklist
 
-- [ ] Apple Developer account ($99/yr) linked to your EAS account
-- [ ] Bundle id `app.usegivest.givest` registered (EAS does this automatically on first build)
-- [ ] Privacy policy URL: `https://usegivest.app`
-- [ ] Encryption exemption: already set (`ITSAppUsesNonExemptEncryption=false` in `app.json`)
-- [ ] App Store screenshots + description (positioning: "the easiest way to gift real stocks")
-- [ ] Review note: tokens are stock *tokens* on Robinhood Chain (economic exposure, not shares); the app holds a self-custodied wallet
+- [x] Apple Developer account linked
+- [x] Bundle id `app.usegivest.givest`
+- [x] Privacy policy URL: `https://usegivest.app`
+- [x] Encryption exemption set (`ITSAppUsesNonExemptEncryption=false`)
+- [x] Embedded wallet, send, claim, activity and profile flows verified end-to-end
+- [x] Submitted to Apple App Store Review
+
+Positioning: the easiest way to gift real stocks. Review note: tokens are stock *tokens* on Robinhood Chain (economic exposure, not shares); the app holds a self-custodied wallet.
 
 ## Icons
 
