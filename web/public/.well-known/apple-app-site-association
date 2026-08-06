@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAMID.app.usegivest.givest"],
+        "components": [
+          { "/": "/claim" },
+          { "/": "/claim/*" }
+        ]
+      }
+    ]
+  }
+}

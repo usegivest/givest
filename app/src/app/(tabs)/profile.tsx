@@ -188,10 +188,17 @@ export default function ProfileScreen() {
           <View style={[styles.linkRow, styles.lastRow]}>
             <Text style={styles.metaText}>Version</Text>
             <Text style={styles.metaValue}>
-              {Constants.expoConfig?.version ?? "1.0.0"}
+              {Constants.expoConfig?.version ?? "1.1.0"}
             </Text>
           </View>
         </Card>
+
+        <Text style={styles.disclaimer}>
+          Stock tokens on Robinhood Chain provide economic exposure to the
+          underlying stock - they are not shares and carry no shareholder
+          rights. Your wallet is self-custodied: the private key lives only on
+          this device, and Givest can never access or recover it.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -259,4 +266,12 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 14, fontWeight: "600", color: colors.text },
   metaText: { fontSize: 14, color: colors.secondary },
   metaValue: { fontSize: 13, color: colors.faint },
+  disclaimer: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.faint,
+    textAlign: "center",
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
 });

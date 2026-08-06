@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const relayerKey = process.env.RELAYER_PRIVATE_KEY as Hex | undefined;
   if (!relayerKey) {
     return NextResponse.json(
-      { error: "Relayer er ikke konfigureret" },
+      { error: "The relayer is not configured." },
       { status: 500 },
     );
   }
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Ugyldig request" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const { claimKey, recipient, signature } = body;
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     !isAddress(recipient) ||
     !/^0x[0-9a-fA-F]{130}$/.test(signature)
   ) {
-    return NextResponse.json({ error: "Ugyldige parametre" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid parameters." }, { status: 400 });
   }
 
   try {
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       signature: signature as Hex,
     });
     if (signer.toLowerCase() !== claimKey.toLowerCase()) {
-      return NextResponse.json({ error: "Ugyldig signatur" }, { status: 403 });
+      return NextResponse.json({ error: "Invalid signature." }, { status: 403 });
     }
 
     const [
@@ -79,10 +79,10 @@ export async function POST(req: Request) {
       args: [claimKey as Address],
     });
     if (status !== 1) {
-      return NextResponse.json({ error: "Droppet er ikke aktivt" }, { status: 409 });
+      return NextResponse.json({ error: "This gift is no longer active." }, { status: 409 });
     }
     if (Number(claimsMade) >= Number(maxClaims)) {
-      return NextResponse.json({ error: "Ingen shares tilbage" }, { status: 409 });
+      return NextResponse.json({ error: "All shares of this gift have been claimed." }, { status: 409 });
     }
 
     const already = await publicClient.readContract({
@@ -101,12 +101,12 @@ export async function POST(req: Request) {
     const now = Date.now() / 1000;
     if (now < Number(claimableAt)) {
       return NextResponse.json(
-        { error: "Giveaway er ikke åben endnu. Prøv igen om lidt." },
+        { error: "This gift is not open yet. Try again in a moment." },
         { status: 409 },
       );
     }
     if (now >= Number(expiresAt)) {
-      return NextResponse.json({ error: "Droppet er udløbet" }, { status: 409 });
+      return NextResponse.json({ error: "This gift has expired." }, { status: 409 });
     }
     void sender;
     void token;
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[relayer] claim failed:", e);
     return NextResponse.json(
-      { error: "Claim-transaktionen fejlede. Prøv igen." },
+      { error: "The claim transaction failed. Try again." },
       { status: 500 },
     );
   }
