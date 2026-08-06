@@ -11,6 +11,7 @@ const PRIMARY = [
   { label: "Send", href: "/send" },
   { label: "Claim", href: "/claim" },
   { label: "Pool", href: "/pool" },
+  { label: "APK", href: "/android" },
 ];
 
 const MORE = [
