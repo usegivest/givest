@@ -155,12 +155,23 @@ export default function HomeScreen() {
           <Text style={styles.portfolioLabel}>Total portfolio value</Text>
         </View>
 
-        <PillButton
-          title="Claim a gift"
-          onPress={() => router.push("/claim")}
-          icon={<Ionicons name="gift-outline" size={17} color={colors.pillText} />}
-          style={styles.claimButton}
-        />
+        <View style={styles.actionsRow}>
+          <PillButton
+            title="Send a gift"
+            onPress={() => router.push("/(tabs)/send")}
+            icon={
+              <Ionicons name="paper-plane-outline" size={17} color={colors.pillText} />
+            }
+            style={styles.actionButton}
+          />
+          <PillButton
+            title="Claim a gift"
+            variant="secondary"
+            onPress={() => router.push("/claim")}
+            icon={<Ionicons name="gift-outline" size={17} color={colors.text} />}
+            style={styles.actionButton}
+          />
+        </View>
 
         <Card style={styles.ethCard}>
           <View style={styles.ethRow}>
@@ -231,9 +242,16 @@ export default function HomeScreen() {
             );
           })}
           {holdings.length === 0 && (
-            <Text style={styles.emptyHoldings}>
-              No stock tokens yet. Claim a gift or send yourself one.
-            </Text>
+            <View style={styles.emptyHoldings}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="gift-outline" size={20} color={colors.accentDeep} />
+              </View>
+              <Text style={styles.emptyTitle}>No stock tokens yet</Text>
+              <Text style={styles.emptyBody}>
+                Claim a gift link from a friend, or send your first gift and
+                watch it land here.
+              </Text>
+            </View>
           )}
         </Card>
       </ScrollView>
@@ -298,7 +316,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   portfolioLabel: { fontSize: 13, color: colors.faint },
-  claimButton: { marginTop: 2 },
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 2 },
+  actionButton: { flex: 1 },
   ethCard: { gap: 0 },
   ethRow: {
     flexDirection: "row",
@@ -364,8 +383,25 @@ const styles = StyleSheet.create({
   holdingAmount: { fontSize: 15, fontWeight: "600", color: colors.text },
   holdingUsd: { fontSize: 12, color: colors.faint },
   emptyHoldings: {
-    paddingVertical: 14,
-    fontSize: 13,
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+  },
+  emptyIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 14, fontWeight: "600", color: colors.text },
+  emptyBody: {
+    fontSize: 12.5,
+    lineHeight: 18,
     color: colors.faint,
+    textAlign: "center",
   },
 });
