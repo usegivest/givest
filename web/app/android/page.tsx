@@ -3,9 +3,9 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Givest for Android — Download the APK",
+  title: "Givest for Android | Download the APK",
   description:
-    "Install the Givest app on Android. Send real stock tokens on Robinhood Chain with one link — direct APK download, no store required.",
+    "Install the Givest app on Android. Send real stock tokens on Robinhood Chain with one link. Direct APK download, no store required.",
 };
 
 const APK_URL =
@@ -18,7 +18,7 @@ const STEPS = [
   },
   {
     title: "Allow the install",
-    body: "Android will ask you to allow installs from your browser the first time. That prompt appears because we ship outside the Play Store — the app is the exact code you can read on GitHub.",
+    body: "Android will ask you to allow installs from your browser the first time. That prompt appears because we ship outside the Play Store. The app is the exact code you can read on GitHub.",
   },
   {
     title: "Open Givest",
@@ -43,7 +43,7 @@ export default function AndroidPage() {
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-500 sm:text-base">
             The full Givest app as a direct download. Send and claim real stock
-            tokens on Robinhood Chain — same open-source code as the iOS app.
+            tokens on Robinhood Chain, same open-source code as the iOS app.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
@@ -92,7 +92,7 @@ export default function AndroidPage() {
           </p>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-gray-600">
             Every release is built from the public repo and published on
-            GitHub. Your wallet is self-custodied — the private key is created
+            GitHub. Your wallet is self-custodied: the private key is created
             on your device and never touches our servers.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
