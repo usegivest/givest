@@ -54,21 +54,25 @@ Without them the app runs fully local-first.
 ## Build for TestFlight / App Store
 
 ```bash
-npm install -g eas-cli   # once
+npm install -g eas-cli
 eas login
-eas build:configure      # once, creates eas.json
-npx eas build --platform ios
-eas submit --platform ios
+eas init          # paste the projectId into app.json → extra.eas.projectId
+eas build --platform ios --profile production
+eas submit --platform ios --profile production
 ```
 
 ### App Store checklist
 
-- [x] Apple Developer account linked
 - [x] Bundle id `app.usegivest.givest`
 - [x] Privacy policy URL: `https://usegivest.app`
 - [x] Encryption exemption set (`ITSAppUsesNonExemptEncryption=false`)
 - [x] Embedded wallet, send, claim, activity and profile flows verified end-to-end
-- [x] Version 1.1 submitted to Apple App Store Review
+- [x] `eas.json` production profile
+- [x] Universal links config (`applinks:usegivest.app`) — set `APPLE_TEAM_ID` on Vercel
+- [ ] Apple Developer account + App Store Connect app record
+- [ ] `eas build --platform ios --profile production`
+- [ ] TestFlight smoke test on a real device
+- [ ] Submit for App Review
 
 Positioning: the easiest way to gift real stocks. Review note: tokens are stock *tokens* on Robinhood Chain (economic exposure, not shares); the app holds a self-custodied wallet.
 

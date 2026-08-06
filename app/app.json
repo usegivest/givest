@@ -11,10 +11,12 @@
       "bundleIdentifier": "app.usegivest.givest",
       "buildNumber": "1",
       "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:usegivest.app",
+        "applinks:www.usegivest.app"
+      ],
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Givest uses the camera to scan claim QR codes.",
-        "NSFaceIDUsageDescription": "Givest can use Face ID to unlock your wallet backup."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -24,6 +26,25 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "usegivest.app",
+              "pathPrefix": "/claim"
+            },
+            {
+              "scheme": "https",
+              "host": "www.usegivest.app",
+              "pathPrefix": "/claim"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -45,6 +66,10 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "privacyPolicyUrl": "https://usegivest.app",
+      "supportUrl": "https://x.com/usegivest"
     }
   }
 }

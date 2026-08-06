@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,7 +17,6 @@ import QRCode from "react-native-qrcode-svg";
 import { formatEther, type Hex } from "viem";
 import { publicClient } from "@/lib/chain";
 import { readFeeStatus, type FeeStatus } from "@/lib/fees";
-import { supabase } from "@/lib/supabase";
 import { useWallet } from "@/lib/wallet";
 import { colors, formatUsd, shortAddress } from "@/lib/theme";
 import { readEthUsd } from "@/lib/prices";
@@ -38,8 +36,6 @@ export default function ProfileScreen() {
   const [copied, setCopied] = useState(false);
   const [revealedKey, setRevealedKey] = useState<Hex | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
-  const [email, setEmail] = useState("");
-  const [otpState, setOtpState] = useState<"idle" | "sending" | "sent">("idle");
 
   const load = useCallback(async () => {
     if (!address) return;
@@ -94,20 +90,6 @@ export default function ProfileScreen() {
     await Clipboard.setStringAsync(revealedKey);
     setKeyCopied(true);
     setTimeout(() => setKeyCopied(false), 1600);
-  }
-
-  async function sendOtp() {
-    if (!supabase || !email.trim()) return;
-    setOtpState("sending");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-    });
-    if (error) {
-      Alert.alert("Sign in failed", error.message);
-      setOtpState("idle");
-    } else {
-      setOtpState("sent");
-    }
   }
 
   const ethNum = ethBalance !== null ? Number(formatEther(ethBalance)) : null;
@@ -183,43 +165,6 @@ export default function ProfileScreen() {
                 />
               </View>
             </View>
-          )}
-        </Card>
-
-        <Card>
-          <Text style={styles.rowTitle}>Sign in</Text>
-          {supabase ? (
-            otpState === "sent" ? (
-              <Text style={styles.rowSub}>
-                Check your inbox - we sent a sign-in link to {email.trim()}.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.rowSub}>
-                  Sync your gift history across devices with an email link.
-                </Text>
-                <TextInput
-                  style={styles.emailInput}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="you@example.com"
-                  placeholderTextColor={colors.faint}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoCorrect={false}
-                />
-                <PillButton
-                  title="Send sign-in link"
-                  onPress={sendOtp}
-                  loading={otpState === "sending"}
-                  disabled={!email.trim()}
-                />
-              </>
-            )
-          ) : (
-            <Text style={styles.rowSub}>
-              Coming soon - account sync is not enabled in this build.
-            </Text>
           )}
         </Card>
 
@@ -301,18 +246,6 @@ const styles = StyleSheet.create({
   },
   keyText: { fontSize: 12, fontFamily: "Menlo", color: colors.text },
   keyActions: { flexDirection: "row", gap: 8 },
-  emailInput: {
-    marginTop: 10,
-    marginBottom: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: colors.text,
-  },
   listCard: { paddingVertical: 4 },
   linkRow: {
     flexDirection: "row",

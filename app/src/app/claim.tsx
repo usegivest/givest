@@ -22,7 +22,7 @@ import { claimViaRelayer } from "@/lib/relayer";
 import { saveReceivedClaim } from "@/lib/storage";
 import { useWallet } from "@/lib/wallet";
 import { colors } from "@/lib/theme";
-import { Card, PillButton, SectionLabel } from "@/components/ui";
+import { Card, PillButton } from "@/components/ui";
 import { StockLogo } from "@/components/StockLogo";
 
 type DropInfo = {
@@ -37,27 +37,29 @@ type DropInfo = {
   name: string;
 };
 
+type ReadyFields = {
+  claimPriv: Hex;
+  drop: DropInfo;
+  message: string | null;
+  fromX: string | null;
+};
+
 type ClaimState =
   | { step: "input" }
   | { step: "locked"; to: string | null; url: string }
   | { step: "loading" }
-  | {
-      step: "ready";
-      claimPriv: Hex;
-      drop: DropInfo;
-      message: string | null;
-      fromX: string | null;
-    }
-  | { step: "claiming"; drop: DropInfo }
+  | ({ step: "ready" } & ReadyFields)
+  | ({ step: "claiming" } & ReadyFields)
   | { step: "success"; drop: DropInfo; txHash: string };
 
 export default function ClaimScreen() {
-  const { address } = useWallet();
+  const { address, status: walletStatus, createWallet } = useWallet();
   const deepLink = useURL();
   const handledDeepLink = useRef<string | null>(null);
   const [input, setInput] = useState("");
   const [state, setState] = useState<ClaimState>({ step: "input" });
   const [error, setError] = useState<string | null>(null);
+  const [creatingWallet, setCreatingWallet] = useState(false);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -133,14 +135,27 @@ export default function ClaimScreen() {
     }
   }, []);
 
-  // Deep links (givest://claim#... or pasted universal links).
+  // Deep links: cold start + runtime (givest://… and https://usegivest.app/claim#…).
+  const ingestDeepLink = useCallback(
+    (url: string | null) => {
+      if (!url || handledDeepLink.current === url) return;
+      if (!url.includes("#") && !url.includes("/claim")) return;
+      handledDeepLink.current = url;
+      setInput(url);
+      loadLink(parseClaimLink(url));
+    },
+    [loadLink],
+  );
+
   useEffect(() => {
-    if (!deepLink || handledDeepLink.current === deepLink) return;
-    if (!deepLink.includes("#")) return;
-    handledDeepLink.current = deepLink;
-    setInput(deepLink);
-    loadLink(parseClaimLink(deepLink));
-  }, [deepLink, loadLink]);
+    ingestDeepLink(deepLink);
+  }, [deepLink, ingestDeepLink]);
+
+  useEffect(() => {
+    Linking.getInitialURL().then(ingestDeepLink);
+    const sub = Linking.addEventListener("url", ({ url }) => ingestDeepLink(url));
+    return () => sub.remove();
+  }, [ingestDeepLink]);
 
   async function pasteFromClipboard() {
     const text = await Clipboard.getStringAsync();
@@ -151,12 +166,43 @@ export default function ClaimScreen() {
   }
 
   async function claim() {
-    if (state.step !== "ready" || !address) return;
-    const { claimPriv, drop } = state;
+    if (state.step !== "ready") return;
+    const ready = state;
+    const { claimPriv, drop, message, fromX } = ready;
     setError(null);
-    setState({ step: "claiming", drop });
+
+    let recipient = address;
+    if (!recipient || walletStatus !== "ready") {
+      setCreatingWallet(true);
+      try {
+        recipient = await createWallet();
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? e.message.split("\n")[0]
+            : "Could not create your wallet. Try again.",
+        );
+        return;
+      } finally {
+        setCreatingWallet(false);
+      }
+    }
+
+    setState({ step: "claiming", claimPriv, drop, message, fromX });
     try {
-      const txHash = await claimViaRelayer(claimPriv, address);
+      const already = await publicClient
+        .readContract({
+          address: CONTRACT_ADDRESS,
+          abi: stockDropsAbi,
+          functionName: "hasClaimed",
+          args: [privateKeyToAccount(claimPriv).address, recipient],
+        })
+        .catch(() => false);
+      if (already) {
+        throw new Error("This wallet already claimed this gift.");
+      }
+
+      const txHash = await claimViaRelayer(claimPriv, recipient);
       await saveReceivedClaim({
         claimKey: privateKeyToAccount(claimPriv).address,
         symbol: drop.symbol,
@@ -166,7 +212,8 @@ export default function ClaimScreen() {
       });
       setState({ step: "success", drop, txHash });
     } catch (e) {
-      setState({ step: "input" });
+      // Keep the gift preview so the user can retry without re-pasting.
+      setState({ step: "ready", claimPriv, drop, message, fromX });
       setError(
         e instanceof Error ? e.message.split("\n")[0] : "The claim failed. Try again.",
       );
@@ -293,16 +340,33 @@ export default function ClaimScreen() {
                 </Text>
               </View>
             ) : (
-              <PillButton title="Claim to my wallet" onPress={claim} />
+              <PillButton
+                title={
+                  walletStatus === "ready" && address
+                    ? "Claim to my wallet"
+                    : "Create wallet and claim"
+                }
+                onPress={claim}
+                loading={creatingWallet}
+              />
+            )}
+            {walletStatus !== "ready" && unlockIn <= 0 && (
+              <Text style={styles.gasNote}>
+                No wallet yet - we will create one on this device first.
+              </Text>
             )}
             <Text style={styles.gasNote}>
               Zero gas - Givest pays the network fee.
             </Text>
+            {error && <Text style={styles.errorText}>{error}</Text>}
           </Card>
           <PillButton
             title="Use a different link"
             variant="ghost"
-            onPress={() => setState({ step: "input" })}
+            onPress={() => {
+              setError(null);
+              setState({ step: "input" });
+            }}
           />
         </>
       )}

@@ -9,12 +9,21 @@ import React, {
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { createWalletClient, http, type Address, type Hex, type WalletClient } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { robinhoodChain } from "./config";
 
 const WALLET_KEY = "givest_wallet_private_key";
 const WALLET_KEY_FALLBACK = "givest_wallet_private_key_fallback";
+
+/** Expo Go / local dev may reject SecureStore; store builds must not. */
+function allowInsecureFallback(): boolean {
+  return (
+    typeof __DEV__ !== "undefined" &&
+    (__DEV__ || Constants.appOwnership === "expo")
+  );
+}
 
 function generateKey(): Hex {
   const bytes = Crypto.getRandomBytes(32);
@@ -32,11 +41,15 @@ async function readKey(): Promise<Hex | null> {
   } catch {
     /* Expo Go / simulator can reject SecureStore in edge cases */
   }
-  try {
-    const fallback = await AsyncStorage.getItem(WALLET_KEY_FALLBACK);
-    if (fallback && /^0x[0-9a-fA-F]{64}$/.test(fallback)) return fallback as Hex;
-  } catch {
-    /* ignore */
+  if (allowInsecureFallback()) {
+    try {
+      const fallback = await AsyncStorage.getItem(WALLET_KEY_FALLBACK);
+      if (fallback && /^0x[0-9a-fA-F]{64}$/.test(fallback)) {
+        return fallback as Hex;
+      }
+    } catch {
+      /* ignore */
+    }
   }
   return null;
 }
@@ -54,9 +67,15 @@ async function writeKey(key: Hex): Promise<void> {
     });
     return;
   } catch {
-    /* fall through to AsyncStorage so Expo Go still works */
+    /* fall through */
   }
-  await AsyncStorage.setItem(WALLET_KEY_FALLBACK, key);
+  if (allowInsecureFallback()) {
+    await AsyncStorage.setItem(WALLET_KEY_FALLBACK, key);
+    return;
+  }
+  throw new Error(
+    "Could not store your wallet securely on this device. Update iOS and try again.",
+  );
 }
 
 export async function loadStoredKey(): Promise<Hex | null> {
