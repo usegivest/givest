@@ -42,7 +42,10 @@
               "pathPrefix": "/claim"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "predictiveBackGestureEnabled": false
@@ -69,7 +72,12 @@
     },
     "extra": {
       "privacyPolicyUrl": "https://usegivest.app",
-      "supportUrl": "https://x.com/usegivest"
-    }
+      "supportUrl": "https://x.com/usegivest",
+      "router": {},
+      "eas": {
+        "projectId": "42c1e32e-ba96-4a4a-8329-207fa33641ee"
+      }
+    },
+    "owner": "rusiboy"
   }
 }
