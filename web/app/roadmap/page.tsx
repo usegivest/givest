@@ -3,9 +3,9 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Roadmap · Givest",
+  title: "Roadmap | Givest",
   description:
-    "What shipped, what we’re building next, and where Givest is headed - without the vaporware.",
+    "What shipped, what we're building next, and where Givest is headed. Without the vaporware.",
 };
 
 type Status = "live" | "now" | "next";
@@ -27,58 +27,54 @@ const PHASES: Phase[] = [
   {
     status: "live",
     label: "Shipped",
-    title: "The core product works.",
+    title: "The product is real.",
     blurb:
-      "Send a stock token. Share one private link. They claim - you pay the gas.",
+      "Web, Android, and the full gift stack. Send a stock. Share one link. They claim. You pay the gas.",
     items: [
       {
         title: "Private claim links",
         body: "Escrow on Robinhood Chain. The claim key lives in the URL, not on our servers.",
       },
       {
-        title: "Deep-liquidity stocks only",
-        body: "NVDA, TSLA, AAPL, and other thick pools. Thin tickers stay off the list until liquidity is real.",
+        title: "Android app",
+        body: "Direct APK with an embedded wallet. Create, send, and claim from your phone. Open source.",
       },
       {
-        title: "Best-pool routing",
-        body: "We quote every deep route and pick the best. Thin V3 junk pools are blocked. High impact refuses the send.",
+        title: "Scheduled unlocks",
+        body: "Seal a gift until a birthday or a date you pick. The unlock is enforced onchain.",
       },
       {
-        title: "Gasless claims",
-        body: "Recipients connect a wallet and claim. We relay and cover gas.",
+        title: "Giveaways + split winners",
+        body: "Random unlock windows and N equal shares. One link, many wallets, one claim each.",
       },
       {
-        title: "Gift notes",
-        body: "Add a short message on the claim page - birthday, bonus, thank you.",
+        title: "Gift pools",
+        body: "Crowd-fund a drop together, then finalize it into one stock gift.",
       },
       {
-        title: "Live quote preview",
-        body: "See expected shares and price impact before you confirm - Uniswap V3 + V4 quotes on send.",
+        title: "Custom tokens + recipient lock",
+        body: "Any ERC-20 on Robinhood Chain by contract address. Lock a gift to a specific X handle.",
       },
       {
-        title: "Giveaway mode",
-        body: "Random onchain unlock inside a window you set - share the link now, claim opens later.",
-      },
-      {
-        title: "Split winners",
-        body: "One link, N equal shares. Each wallet claims once - perfect for $10 → 10×$1 drops.",
-      },
-      {
-        title: "Protocol fees + holder pass",
-        body: "1% on create (0.75% at 10k $GIVEST, free at 100k). Fees fund gasless claims and giveaways.",
+        title: "Gasless claims + fee tiers",
+        body: "We cover network fees on claim. Holders of $GIVEST pay less to send.",
       },
     ],
   },
   {
     status: "now",
     label: "Building now",
-    title: "Make sending feel obvious.",
+    title: "Get the app into every pocket.",
     blurb:
-      "Small upgrades that remove friction before every send - and make the gift feel like a gift.",
+      "The quiet stretch was for this. Ship the mobile surface end to end.",
     items: [
       {
-        title: "Sender history",
-        body: "A clean list of what you sent, what’s claimed, and what you can refund.",
+        title: "iOS App Store",
+        body: "Submitted. Waiting on Apple review. Same embedded wallet, same claim flow.",
+      },
+      {
+        title: "Fiat onramp",
+        body: "Fund the wallet with USD and local currency via Robinhood Connect and Apple Pay.",
       },
       {
         title: "Buyback + giveaway split",
@@ -89,25 +85,25 @@ const PHASES: Phase[] = [
   {
     status: "next",
     label: "Next",
-    title: "Gifts that keep showing up.",
+    title: "Make ownership a habit.",
     blurb:
-      "Still concrete. Still shippable. Just a little further out.",
+      "Still concrete. Still shippable. The gifts that keep showing up.",
     items: [
       {
-        title: "Scheduled & recurring gifts",
-        body: "Send NVDA on Friday. Or drip $25 of SPY every month. Same claim link model.",
+        title: "Recurring gifts",
+        body: "Drip $25 of SPY every month. Same claim link model. Ownership on a schedule.",
       },
       {
-        title: "Public giveaway polish",
-        body: "Claim-once-per-wallet caps and nicer share cards for Discord and X.",
+        title: "Google Play",
+        body: "Same Android app, from the store. Side-load stays as the open-source path.",
       },
       {
         title: "Share cards & embeds",
         body: "Pretty OG images and a tiny embed so drops look intentional outside the app.",
       },
       {
-        title: "Better liquidity coverage",
-        body: "RFQ routes for thin names as Robinhood’s markets deepen - so more tickers stay sendable.",
+        title: "Deeper liquidity coverage",
+        body: "More tickers as Robinhood Chain markets deepen. Thin pools stay blocked until they are real.",
       },
     ],
   },
