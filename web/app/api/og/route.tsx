@@ -1,33 +1,49 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 
-const STOCK_COLORS: Record<string, string> = {
-  NVDA: "#76B900",
-  TSLA: "#E82127",
-  AAPL: "#A2AAAD",
-  AMZN: "#FF9900",
-  META: "#0668E1",
-  GOOGL: "#4285F4",
-  MSFT: "#00A4EF",
-  HOOD: "#CCFF00",
-  SPY: "#1B4F9C",
-  QQQ: "#5B2C8A",
-  ETH: "#627EEA",
-};
+/** The real Givest mark, same path as components/LogoMark. */
+const GIVEST_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill-rule="evenodd" clip-rule="evenodd" d="M 256 0 L 256 128 A 128 128 0 1 1 128 0 Z M 128 176 A 48 48 0 1 0 128 80 A 48 48 0 0 0 128 176 Z" fill="#ffffff"/></svg>`;
+
+const GIVEST_MARK = `data:image/svg+xml;base64,${Buffer.from(
+  GIVEST_MARK_SVG,
+).toString("base64")}`;
+
+/** Load the bundled stock logo and inline it, so satori never fetches mid-render. */
+async function loadStockLogo(
+  origin: string,
+  symbol: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${origin}/logos/${symbol}.png`, {
+      cache: "force-cache",
+    });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:image/png;base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = req.nextUrl;
-    const symbol = (searchParams.get("s") || "STOCK").toUpperCase().slice(0, 12);
-    const usdRaw = searchParams.get("u") || "";
-    const from = (searchParams.get("f") || "").replace(/^@/, "").slice(0, 24);
+    const { searchParams, origin } = req.nextUrl;
+    const symbol = (searchParams.get("s") || "STOCK")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 12);
+    const usd = Number(searchParams.get("u") || "");
+    const from = (searchParams.get("f") || "")
+      .replace(/^@/, "")
+      .replace(/[^A-Za-z0-9_]/g, "")
+      .slice(0, 20);
     const note = (searchParams.get("m") || "").slice(0, 80);
-    const usd = Number(usdRaw);
     const hasUsd = Number.isFinite(usd) && usd > 0;
-    const accent = STOCK_COLORS[symbol] ?? "#e4a0b5";
     const headline = hasUsd
       ? `$${Math.round(usd).toLocaleString("en-US")} of ${symbol}`
       : `A ${symbol} gift`;
+
+    const logo = await loadStockLogo(origin, symbol);
 
     return new ImageResponse(
       (
@@ -54,25 +70,15 @@ export async function GET(req: NextRequest) {
             }}
           >
             <div style={{ display: "flex", alignItems: "center" }}>
-              <div
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 14,
-                  backgroundColor: "#17191f",
-                  border: "1px solid #e4a0b5",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 26,
-                  fontWeight: 700,
-                  color: "#f3c9d7",
-                  marginRight: 14,
-                }}
-              >
-                g
+              <img
+                src={GIVEST_MARK}
+                width={44}
+                height={44}
+                style={{ marginRight: 16 }}
+              />
+              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: -1 }}>
+                Givest
               </div>
-              <div style={{ fontSize: 32, fontWeight: 700 }}>Givest</div>
             </div>
             <div style={{ fontSize: 22, color: "#9a9098" }}>Real stock gift</div>
           </div>
@@ -81,20 +87,30 @@ export async function GET(req: NextRequest) {
             <div style={{ display: "flex", alignItems: "center" }}>
               <div
                 style={{
-                  width: 88,
-                  height: 88,
-                  borderRadius: 26,
-                  backgroundColor: accent,
+                  width: 104,
+                  height: 104,
+                  borderRadius: 28,
+                  backgroundColor: "#ffffff",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 30,
-                  fontWeight: 800,
-                  color: "#111111",
-                  marginRight: 22,
+                  marginRight: 26,
                 }}
               >
-                {symbol.slice(0, 2)}
+                {logo ? (
+                  <img src={logo} width={76} height={76} />
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      fontSize: 32,
+                      fontWeight: 800,
+                      color: "#17191f",
+                    }}
+                  >
+                    {symbol.slice(0, 2)}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <div
@@ -107,7 +123,7 @@ export async function GET(req: NextRequest) {
                 >
                   {headline}
                 </div>
-                <div style={{ fontSize: 26, color: "#b7aeb6", marginTop: 8 }}>
+                <div style={{ fontSize: 26, color: "#b7aeb6", marginTop: 10 }}>
                   {from
                     ? `From @${from}  ·  claim with one tap`
                     : "Claim with one tap  ·  gas covered"}
@@ -118,15 +134,17 @@ export async function GET(req: NextRequest) {
             {note ? (
               <div
                 style={{
+                  display: "flex",
+                  alignSelf: "flex-start",
                   marginTop: 28,
-                  padding: "16px 22px",
-                  borderRadius: 18,
-                  backgroundColor: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(228,160,181,0.3)",
+                  marginLeft: 130,
+                  padding: "14px 24px",
+                  borderRadius: 999,
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(228,160,181,0.32)",
                   fontSize: 24,
                   color: "#e8e2e6",
-                  maxWidth: 980,
-                  display: "flex",
+                  maxWidth: 900,
                 }}
               >
                 {note}
