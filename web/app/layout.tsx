@@ -7,6 +7,29 @@ export const metadata: Metadata = {
   title: "Givest",
   description:
     "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+  openGraph: {
+    title: "Givest",
+    description:
+      "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+    url: "https://usegivest.app",
+    siteName: "Givest",
+    type: "website",
+    images: [
+      {
+        url: "https://usegivest.app/api/og?s=STOCK&u=25",
+        width: 1200,
+        height: 630,
+        alt: "Givest",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Givest",
+    description:
+      "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+    images: ["https://usegivest.app/api/og?s=STOCK&u=25"],
+  },
 };
 
 export default function RootLayout({

@@ -330,7 +330,10 @@ export default function SendScreen() {
       }
       await publicClient.waitForTransactionReceipt({ hash });
 
-      const link = buildClaimLink(key.privateKey, message);
+      const link = buildClaimLink(key.privateKey, message, {
+        symbol: stock.symbol,
+        usd,
+      });
       await saveSentDrop({
         claimKey: key.address,
         link,

@@ -52,9 +52,19 @@ export function parseClaimLink(input: string): ParsedClaimLink {
 }
 
 /** Build a shareable claim link, mirroring the web send page. */
-export function buildClaimLink(claimPriv: Hex, message: string): string {
+export function buildClaimLink(
+  claimPriv: Hex,
+  message: string,
+  opts?: { symbol?: string; usd?: number; from?: string },
+): string {
   const messagePart = message.trim()
     ? `&m=${encodeURIComponent(message.trim())}`
     : "";
-  return `${WEB_APP_URL}/claim#${claimPriv}${messagePart}`;
+  const preview = new URLSearchParams();
+  if (opts?.symbol) preview.set("s", opts.symbol);
+  if (opts?.usd && opts.usd > 0) preview.set("u", String(Math.round(opts.usd)));
+  if (opts?.from) preview.set("f", opts.from.replace(/^@/, ""));
+  if (message.trim()) preview.set("m", message.trim().slice(0, 80));
+  const qs = preview.toString();
+  return `${WEB_APP_URL}/claim${qs ? `?${qs}` : ""}#${claimPriv}${messagePart}`;
 }

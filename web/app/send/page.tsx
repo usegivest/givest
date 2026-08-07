@@ -528,7 +528,18 @@ export default function SendPage() {
         }
       }
 
-      const url = `${window.location.origin}/claim#${keyPart}${lockPart}${
+      // Query params power the share card on X / Discord (crawlers never see the hash).
+      // The claim key stays in the hash so it never hits our servers.
+      const preview = new URLSearchParams();
+      preview.set("s", stock.symbol);
+      preview.set("u", String(Math.round(usd)));
+      const fromHandle =
+        xAuth.user?.handle?.replace(/^@/, "") ||
+        xHandle.trim().replace(/^@/, "");
+      if (fromHandle) preview.set("f", fromHandle);
+      if (message.trim()) preview.set("m", message.trim().slice(0, 80));
+
+      const url = `${window.location.origin}/claim?${preview.toString()}#${keyPart}${lockPart}${
         message ? `&m=${encodeURIComponent(message)}` : ""
       }${senderPart}`;
       setLink(url);

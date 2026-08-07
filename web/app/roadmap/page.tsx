@@ -59,6 +59,10 @@ const PHASES: Phase[] = [
         title: "Gasless claims + fee tiers",
         body: "We cover network fees on claim. Holders of $GIVEST pay less to send.",
       },
+      {
+        title: "Share cards",
+        body: "Paste a claim link on X or Discord and a real gift card appears. Stock, amount, sender, note.",
+      },
     ],
   },
   {
@@ -96,10 +100,6 @@ const PHASES: Phase[] = [
       {
         title: "Google Play",
         body: "Same Android app, from the store. Side-load stays as the open-source path.",
-      },
-      {
-        title: "Share cards & embeds",
-        body: "Pretty OG images and a tiny embed so drops look intentional outside the app.",
       },
       {
         title: "Deeper liquidity coverage",

@@ -699,7 +699,17 @@ function PoolView({ meta }: { meta: PoolMeta }) {
         meta.title ? `&m=${encodeURIComponent(meta.title)}` : "",
         meta.organizer ? `&x=${encodeURIComponent(meta.organizer)}` : "",
       ].join("");
-      setClaimLink(`${window.location.origin}/claim#${key.privateKey}${parts}`);
+      const preview = new URLSearchParams();
+      preview.set("s", stock.symbol);
+      preview.set(
+        "u",
+        String(Math.max(1, Math.round(usdNow || meta.goalUsd || 0))),
+      );
+      if (meta.organizer) preview.set("f", meta.organizer.replace(/^@/, ""));
+      if (meta.title) preview.set("m", meta.title.slice(0, 80));
+      setClaimLink(
+        `${window.location.origin}/claim?${preview.toString()}#${key.privateKey}${parts}`,
+      );
       refresh();
     } catch (e) {
       setError(
