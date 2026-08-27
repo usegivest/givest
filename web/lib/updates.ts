@@ -12,6 +12,13 @@ export type Update = {
 export const UPDATES: Update[] = [
   {
     date: "2026-08-27",
+    title: "Share receipt after you send",
+    body: "The done screen now shows the real share card and a ready post. Public drops include the claim link. Private drops keep the key out of the post so you can DM it.",
+    tag: "shipped",
+    href: { label: "Send a gift", url: "/send" },
+  },
+  {
+    date: "2026-08-27",
     title: "Refund from the status page",
     body: "If you sent the gift, pull the remaining tokens back from the same screen. After expiry, anyone can push them back to the sender.",
     tag: "shipped",
@@ -48,10 +55,6 @@ export const UPDATES: Update[] = [
 ];
 
 export const THIS_WEEK: { title: string; body: string }[] = [
-  {
-    title: "A share receipt after you send",
-    body: "Copy a ready tweet and the share card from the done screen, so the gift looks like a gift.",
-  },
   {
     title: "Clearer copy on the claim page",
     body: "iPhone is not out. The claim flow should say that, the same way the homepage does now.",

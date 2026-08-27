@@ -117,6 +117,7 @@ export default function SendPage() {
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [tweetCopied, setTweetCopied] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [claimableAt, setClaimableAt] = useState<number | null>(null);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
@@ -702,6 +703,22 @@ export default function SendPage() {
             symbol={stock.symbol}
             usd={usd}
             opensAt={dropMode === "scheduled" ? claimableAt : null}
+          />
+
+          <ShareReceipt
+            link={link}
+            symbol={stock.symbol}
+            usd={usd}
+            publicSafe={
+              (lockEnabled && Boolean(lockHandle.trim())) ||
+              dropMode === "giveaway" ||
+              splits > 1
+            }
+            tweetCopied={tweetCopied}
+            onCopied={() => {
+              setTweetCopied(true);
+              setTimeout(() => setTweetCopied(false), 1600);
+            }}
           />
 
           <div className="mt-5 flex items-center justify-between">
@@ -1448,6 +1465,97 @@ export default function SendPage() {
         {saved.length > 0 && <SavedDrops saved={saved} />}
       </div>
     </EditorialPageShell>
+  );
+}
+
+function shareUrls(link: string) {
+  const u = new URL(link, "https://usegivest.app");
+  const qs = u.searchParams.toString();
+  const publicUrl = `${u.origin}${u.pathname}${qs ? `?${qs}` : ""}`;
+  const cardSrc = `${u.origin}/api/og?${qs || "s=STOCK"}`;
+  return { publicUrl, cardSrc };
+}
+
+function buildSharePost(opts: {
+  symbol: string;
+  usd: number;
+  link: string;
+  publicUrl: string;
+  publicSafe: boolean;
+}) {
+  const amount = `$${Math.max(1, Math.round(opts.usd))} of ${opts.symbol}`;
+  if (opts.publicSafe) {
+    return `I sent ${amount} on Givest.\n\nOne link. They claim. I paid the gas.\n\n${opts.link}`;
+  }
+  return `I sent ${amount} as a real stock gift on Givest.\n\nThe claim link stays private. This is the card.\n\n${opts.publicUrl}`;
+}
+
+function ShareReceipt({
+  link,
+  symbol,
+  usd,
+  publicSafe,
+  tweetCopied,
+  onCopied,
+}: {
+  link: string;
+  symbol: string;
+  usd: number;
+  publicSafe: boolean;
+  tweetCopied: boolean;
+  onCopied: () => void;
+}) {
+  const { publicUrl, cardSrc } = shareUrls(link);
+  const post = buildSharePost({ symbol, usd, link, publicUrl, publicSafe });
+  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(post)}`;
+
+  return (
+    <div className="mt-3 rounded-2xl border border-gray-100 bg-white p-4">
+      <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
+        Share the gift
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-gray-500">
+        {publicSafe
+          ? "This drop is safe to post. The card and the claim link go together."
+          : "Post the card. Send the private claim link in a DM. The key in the link is the money."}
+      </p>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cardSrc}
+        alt={`${symbol} gift card`}
+        className="mt-3 w-full rounded-xl border border-gray-100 bg-gray-50"
+      />
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          className="btn-secondary inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm"
+          onClick={async () => {
+            await navigator.clipboard.writeText(post);
+            onCopied();
+          }}
+        >
+          {tweetCopied ? (
+            <>
+              <Check className="h-4 w-4 text-green-600" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-4 w-4" />
+              Copy post
+            </>
+          )}
+        </button>
+        <a
+          href={intent}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary inline-flex flex-1 items-center justify-center gap-2 px-4 py-2.5 text-sm"
+        >
+          Post on X
+        </a>
+      </div>
+    </div>
   );
 }
 
