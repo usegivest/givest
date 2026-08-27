@@ -17,6 +17,7 @@ import {
 } from "@/lib/config";
 import { fetchTokenInfo, tokenInfoToStock } from "@/lib/tokenInfo";
 import { newClaimKey, publicClient } from "@/lib/chain";
+import { dropHeadline, readDrop, type DropView } from "@/lib/dropLookup";
 import {
   formatShares,
   MAX_PRICE_IMPACT_PCT,
@@ -1580,24 +1581,63 @@ function GiftCardQr({
 }
 
 function SavedDrops({ saved }: { saved: SavedDrop[] }) {
+  const [live, setLive] = useState<Record<string, DropView | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      saved.slice(0, 6).map(async (d) => {
+        const drop = await readDrop(d.claimKey as `0x${string}`);
+        return [d.claimKey.toLowerCase(), drop] as const;
+      }),
+    ).then((rows) => {
+      if (cancelled) return;
+      setLive(Object.fromEntries(rows));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [saved]);
+
   return (
     <div className="rounded-2xl border border-gray-200/60 bg-white/95 p-5 shadow-lg backdrop-blur-md">
-      <h2 className="text-xs font-semibold tracking-wide text-gray-900 uppercase">Recent drops</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold tracking-wide text-gray-900 uppercase">
+          Recent drops
+        </h2>
+        <a
+          href="/gifts"
+          className="text-xs font-semibold text-gray-400 underline-offset-2 hover:text-gray-900 hover:underline"
+        >
+          All gifts
+        </a>
+      </div>
       <ul className="mt-3 space-y-2">
-        {saved.slice(0, 6).map((d) => (
-          <li
-            key={d.claimKey}
-            className="flex items-center justify-between gap-3 border-t border-gray-100 py-3 text-sm first:border-0"
-          >
-            <span className="text-gray-700">
-              ${d.usd} {d.symbol}
-              <span className="ml-2 text-xs text-gray-400">
-                {new Date(d.createdAt).toLocaleDateString("en-US")}
+        {saved.slice(0, 6).map((d) => {
+          const drop = live[d.claimKey.toLowerCase()];
+          return (
+            <li
+              key={d.claimKey}
+              className="flex items-center justify-between gap-3 border-t border-gray-100 py-3 text-sm first:border-0"
+            >
+              <span className="text-gray-700">
+                ${d.usd} {d.symbol}
+                <span className="ml-2 text-xs text-gray-400">
+                  {drop ? dropHeadline(drop) : new Date(d.createdAt).toLocaleDateString("en-US")}
+                </span>
               </span>
-            </span>
-            <CopyLinkButton link={d.link} />
-          </li>
-        ))}
+              <span className="flex items-center gap-3">
+                <a
+                  href={`/status?k=${d.claimKey}`}
+                  className="text-xs font-semibold text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+                >
+                  Status
+                </a>
+                <CopyLinkButton link={d.link} />
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

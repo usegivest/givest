@@ -15,6 +15,9 @@ const PRIMARY = [
 ];
 
 const MORE = [
+  { label: "Updates", href: "/updates", desc: "What shipped, with dates" },
+  { label: "Gifts", href: "/gifts", desc: "What you sent, live onchain" },
+  { label: "Status", href: "/status", desc: "Look up a gift onchain" },
   { label: "Token", href: "/token", desc: "$GIVEST utility and fee tiers" },
   { label: "Volume", href: "/volume", desc: "Live protocol stats" },
   { label: "Roadmap", href: "/roadmap", desc: "What ships next" },

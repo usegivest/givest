@@ -42,8 +42,8 @@ export default function AndroidPage() {
             <span className="text-zinc-400">No store needed.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-500 sm:text-base">
-            The full Givest app as a direct download. Send and claim real stock
-            tokens on Robinhood Chain, same open-source code as the iOS app.
+            The phone app that is actually out. Send and claim real stock tokens
+            on Robinhood Chain. iPhone is not in the App Store yet.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a

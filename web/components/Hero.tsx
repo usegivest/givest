@@ -96,6 +96,17 @@ export default function Hero({
 
       <ProtocolVolume volumeLabel={volumeLabel} dropCount={dropCount} />
 
+      <p className="mt-4 max-w-sm text-sm text-gray-500">
+        iPhone is not out yet.{" "}
+        <a href="/android" className="font-medium text-gray-800 underline-offset-2 hover:underline">
+          Android is live
+        </a>
+        {" · "}
+        <a href="/updates" className="text-gray-400 underline-offset-2 hover:text-gray-600 hover:underline">
+          updates
+        </a>
+      </p>
+
       <TokenCa />
 
       <PopupCard />

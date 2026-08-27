@@ -68,21 +68,25 @@ const PHASES: Phase[] = [
   {
     status: "now",
     label: "Building now",
-    title: "Get the app into every pocket.",
+    title: "Earn the next version in public.",
     blurb:
-      "The quiet stretch was for this. Ship the mobile surface end to end.",
+      "We went quiet. That was not fair. This week we ship things you can click, and we write them down.",
     items: [
       {
         title: "iOS App Store",
-        body: "Submitted. Waiting on Apple review. Same embedded wallet, same claim flow.",
+        body: "Not out. Not in review. We will not talk about it like it is done until you can open it from the App Store.",
+      },
+      {
+        title: "Public updates log",
+        body: "A dated changelog on the site. If it is not there, it did not ship.",
+      },
+      {
+        title: "Gift status",
+        body: "Paste a claim link and see if it is open, claimed, locked, or refunded. Read from the chain.",
       },
       {
         title: "Fiat onramp",
-        body: "Fund the wallet with USD and local currency via Robinhood Connect and Apple Pay.",
-      },
-      {
-        title: "Buyback + giveaway split",
-        body: "Route protocol fees into relayer gas, $GIVEST buybacks, and funded public drops.",
+        body: "Fund a wallet with USD via Robinhood Connect. Still in progress. Not live.",
       },
     ],
   },

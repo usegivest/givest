@@ -176,6 +176,27 @@ export const stockDropsAbi = [
   },
   {
     type: "function",
+    name: "refundExpired",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "claimKey", type: "address" }],
+    outputs: [],
+  },
+  {
+    type: "event",
+    name: "DropCreated",
+    inputs: [
+      { name: "claimKey", type: "address", indexed: true },
+      { name: "sender", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: true },
+      { name: "amount", type: "uint256" },
+      { name: "amountPerClaim", type: "uint128" },
+      { name: "maxClaims", type: "uint16" },
+      { name: "expiresAt", type: "uint40" },
+      { name: "claimableAt", type: "uint40" },
+    ],
+  },
+  {
+    type: "function",
     name: "hasClaimed",
     stateMutability: "view",
     inputs: [
