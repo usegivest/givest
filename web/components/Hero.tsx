@@ -2,7 +2,7 @@
 
 import PopupCard from "@/components/PopupCard";
 import StockLogo from "@/components/StockLogo";
-import { STOCKS } from "@/lib/config";
+import { FEATURED_STOCKS, STOCKS } from "@/lib/config";
 
 export default function Hero({ scrollProgress }: { scrollProgress: number }) {
   const opacity = Math.max(1 - scrollProgress * 2.5, 0);
@@ -45,13 +45,13 @@ export default function Hero({ scrollProgress }: { scrollProgress: number }) {
 
       <div className="mt-8 w-full max-w-xl">
         <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">
-          xStocks on Solana
+          {STOCKS.length.toLocaleString("en-US")} xStocks on Solana
         </p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {STOCKS.map((stock) => (
+          {FEATURED_STOCKS.map((stock) => (
             <a
               key={stock.symbol}
-              href={`/send?s=${stock.symbol}`}
+              href={`/send?s=${encodeURIComponent(stock.symbol)}`}
               className="inline-flex items-center gap-2 rounded-full border border-gray-200/80 bg-white/85 py-1.5 pr-3.5 pl-1.5 text-sm font-medium text-gray-900 shadow-sm backdrop-blur-sm transition hover:border-gray-300"
             >
               <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gray-50">

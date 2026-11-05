@@ -1,5 +1,5 @@
 import StockLogo from "@/components/StockLogo";
-import { STOCKS } from "@/lib/config";
+import { FEATURED_STOCKS } from "@/lib/config";
 
 export default function Dashboard() {
   return (
@@ -13,7 +13,7 @@ export default function Dashboard() {
         </h3>
       </div>
       <div className="grid grid-cols-1 gap-2">
-        {STOCKS.map((stock) => (
+        {FEATURED_STOCKS.map((stock) => (
           <a
             key={stock.symbol}
             href={`/send?s=${stock.symbol}`}

@@ -83,7 +83,7 @@ export default function SendPage() {
   const { address, connect, signAndSendTransaction } = useWallet();
   const [symbol, setSymbol] = useState("NVDA");
   const [stockQuery, setStockQuery] = useState("");
-  const [stockLimit, setStockLimit] = useState(12);
+  const [stockLimit, setStockLimit] = useState(24);
   const [customToken, setCustomToken] = useState<Stock | null>(null);
   const [customLookup, setCustomLookup] = useState<
     | { status: "idle" }
