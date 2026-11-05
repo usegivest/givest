@@ -2,6 +2,9 @@ import catalog from "./xstocks.json";
 
 export const SOL_MINT = "So11111111111111111111111111111111111111112";
 
+/** $GIVEST on Solana. Token-2022, 6 decimals. */
+export const GIVEST_MINT = "F2AvkmDtZdXbWXaS1ja8Mjgjy54zsHhDErWzeFCNpump";
+
 export const EXPLORER = "https://solscan.io";
 
 export const PROTOCOL_FEE = {

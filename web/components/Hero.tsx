@@ -2,6 +2,7 @@
 
 import PopupCard from "@/components/PopupCard";
 import StockLogo from "@/components/StockLogo";
+import TokenCa from "@/components/TokenCa";
 import { FEATURED_STOCKS, STOCKS } from "@/lib/config";
 
 export default function Hero({ scrollProgress }: { scrollProgress: number }) {
@@ -62,6 +63,8 @@ export default function Hero({ scrollProgress }: { scrollProgress: number }) {
           ))}
         </div>
       </div>
+
+      <TokenCa />
 
       <p className="mt-4 max-w-sm text-sm text-gray-500">
         iPhone is not out yet.{" "}

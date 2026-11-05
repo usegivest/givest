@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import TokenCa from "@/components/TokenCa";
 import TokenTierCheck from "@/components/TokenTierCheck";
+import { EXPLORER, GIVEST_MINT } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "$GIVEST — Givest",
@@ -48,16 +50,26 @@ export default function TokenPage() {
             Hold $GIVEST. <span className="text-zinc-400">Send for less.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-500 sm:text-base">
-            The Solana fee is a flat 1% until $GIVEST exists on Solana.
+            $GIVEST is live on Solana. The send fee is 1% in SOL.
+          </p>
+          <TokenCa />
+          <p className="mt-3">
+            <a
+              href={`${EXPLORER}/token/${GIVEST_MINT}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium text-gray-500 underline-offset-2 hover:text-gray-900 hover:underline"
+            >
+              View on Solscan
+            </a>
           </p>
         </header>
 
         <div className="mt-12 space-y-6">
           <Card title="Your holder tier">
             <p>
-              Every send on Givest pays a protocol fee. Holding $GIVEST lowers
-              it, all the way to zero. The contract checks your balance at send
-              time, so there is nothing to stake, register, or claim.
+              Every send pays 1% in SOL. That fee covers claims, so the person
+              who opens the link does not pay it.
             </p>
             <TokenTierCheck />
           </Card>
@@ -92,8 +104,8 @@ export default function TokenPage() {
 
           <Card title="Send $GIVEST as a gift" delay={180}>
             <p>
-              $GIVEST is not on the Solana send list. The stocks you can send
-              are the xStocks: Nvidia, Apple, Tesla, and the rest on the send page.
+              $GIVEST is the project token on Solana. The stocks you send are the
+              xStocks on the send page.
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
               <Link
@@ -107,11 +119,8 @@ export default function TokenPage() {
 
           <Card title="The fine print" delay={270}>
             <p>
-              Tiers are read live from the escrow contract when your wallet is
-              connected. Thresholds: 10,000 $GIVEST for the reduced fee,
-              100,000 $GIVEST for free sends. Balances are checked at send
-              time, so selling below a threshold moves you back down. No
-              lockups, no vesting, no snapshots.
+              The send fee is 1% in SOL. Holder discounts are not live on this
+              chain yet. No lockups and no vesting on the token itself.
             </p>
           </Card>
         </div>
