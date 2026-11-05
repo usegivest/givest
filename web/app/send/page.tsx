@@ -1,22 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, parseEther } from "viem";
+import { PublicKey } from "@solana/web3.js";
 import { ArrowUpRight, Check, Copy, Download, Link2, QrCode, ShieldCheck, Wallet } from "lucide-react";
 import QRCode from "react-qr-code";
 import EditorialPageShell from "@/components/EditorialPageShell";
 import StockLogo from "@/components/StockLogo";
 import {
   STOCKS,
-  CONTRACT_ADDRESS,
-  EXPIRY_DAYS,
-  USDG,
   PROTOCOL_FEE,
-  stockDropsAbi,
   type Stock,
 } from "@/lib/config";
 import { fetchTokenInfo, tokenInfoToStock } from "@/lib/tokenInfo";
-import { newClaimKey, publicClient } from "@/lib/chain";
+import { newClaimKey } from "@/lib/chain";
+import { buildStockDropTxFor, confirmSignature } from "@/lib/solana";
 import { dropHeadline, readDrop, type DropView } from "@/lib/dropLookup";
 import {
   formatShares,
@@ -24,7 +21,7 @@ import {
   quoteBestStockSwap,
   type StockQuote,
 } from "@/lib/quotes";
-import { readEthUsd, readUsdPrice } from "@/lib/prices";
+import { lamportsForUsd, readSolUsd, readUsdPrice } from "@/lib/prices";
 import { readFeeStatus, feeStatusFromBps, type FeeStatus } from "@/lib/fees";
 import { useWallet } from "@/lib/wallet";
 
@@ -62,7 +59,7 @@ function toLocalInputValue(d: Date): string {
 type QuoteState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; quote: StockQuote; ethIn: bigint }
+  | { status: "ready"; quote: StockQuote; solIn: bigint }
   | { status: "error"; message: string };
 
 const GIVEAWAY_WINDOWS = [
@@ -77,13 +74,13 @@ const SPLIT_PRESETS = [1, 5, 10, 20, 50] as const;
 
 const FOOTER = (
   <>
-    The escrow contract is open source and verified on Blockscout. Stock tokens
-    are not shares. They provide economic exposure, not shareholder rights.
+    xStocks on Solana. They are not shares. They provide economic exposure, not
+    shareholder rights. The claim link is the key.
   </>
 );
 
 export default function SendPage() {
-  const { address, client, connect } = useWallet();
+  const { address, connect, signAndSendTransaction } = useWallet();
   const [symbol, setSymbol] = useState("NVDA");
   const [stockQuery, setStockQuery] = useState("");
   const [stockLimit, setStockLimit] = useState(12);
@@ -120,7 +117,7 @@ export default function SendPage() {
   const [tweetCopied, setTweetCopied] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [claimableAt, setClaimableAt] = useState<number | null>(null);
-  const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [solUsd, setSolUsd] = useState<number | null>(null);
   const [stockUsd, setStockUsd] = useState<number | null>(null);
   const [saved, setSaved] = useState<SavedDrop[]>([]);
   const [quoteState, setQuoteState] = useState<QuoteState>({ status: "idle" });
@@ -171,7 +168,7 @@ export default function SendPage() {
         : 0;
 
   useEffect(() => {
-    readEthUsd().then(setEthUsd);
+    readSolUsd().then(setSolUsd);
   }, []);
 
   // Prefill from /x: ?s=NVDA&u=10&to=handle
@@ -274,7 +271,7 @@ export default function SendPage() {
       .catch(() => {});
   }, []);
 
-  const ethAmount = ethUsd && usd > 0 ? usd / ethUsd : null;
+  const solAmount = solUsd && usd > 0 ? usd / solUsd : null;
   const approxShares =
     amountMode === "shares"
       ? shares
@@ -283,13 +280,13 @@ export default function SendPage() {
         : null;
 
   useEffect(() => {
-    if (!ethUsd || usd <= 0) {
+    if (!solUsd || usd <= 0) {
       setQuoteState({ status: "idle" });
       return;
     }
 
-    const ethIn = parseEther((usd / ethUsd).toFixed(18));
-    if (ethIn <= 0n) {
+    const solIn = lamportsForUsd(usd, solUsd);
+    if (solIn <= 0n) {
       setQuoteState({ status: "idle" });
       return;
     }
@@ -300,13 +297,13 @@ export default function SendPage() {
     const timer = window.setTimeout(async () => {
       try {
         const quote = await quoteBestStockSwap(
-          ethIn,
+          solIn,
           stock.address,
           stockUsd,
           usd,
         );
         if (cancelled) return;
-        setQuoteState({ status: "ready", quote, ethIn });
+        setQuoteState({ status: "ready", quote, solIn });
       } catch (e) {
         if (cancelled) return;
         setQuoteState({
@@ -323,12 +320,10 @@ export default function SendPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [stock.address, stock.symbol, usd, ethUsd, stockUsd]);
+  }, [stock.address, stock.symbol, usd, solUsd, stockUsd]);
 
   const quotedShares =
-    quoteState.status === "ready"
-      ? Number(formatEther(quoteState.quote.amountOut))
-      : null;
+    quoteState.status === "ready" ? quoteState.quote.uiAmount : null;
   const quotedUsd =
     quotedShares !== null && stockUsd !== null
       ? quotedShares * stockUsd
@@ -379,10 +374,8 @@ export default function SendPage() {
       if (lockEnabled && !lockHandle.trim().replace(/^@/, "")) {
         throw new Error("Enter the X handle that should claim this drop.");
       }
-      const wallet = client && address ? { client, address } : await connect();
-      const walletClient = "client" in wallet ? wallet.client : client!;
-      const from = "address" in wallet ? wallet.address : address!;
-      if (!ethUsd) throw new Error("Could not fetch the ETH price. Try again.");
+      const from = address ?? (await connect()).address;
+      if (!solUsd) throw new Error("Could not fetch the SOL price. Try again.");
 
       if (liquidityBlocked) {
         throw new Error(
@@ -393,115 +386,23 @@ export default function SendPage() {
 
       setPhase("confirming");
       const key = newClaimKey();
-      const giftEth = parseEther((usd / ethUsd).toFixed(18));
-      const value = fee.grossFromGift(giftEth);
-
-      let bestQuote: StockQuote;
-      if (quoteState.status === "ready" && quoteState.ethIn === giftEth) {
-        bestQuote = quoteState.quote;
-      } else {
-        bestQuote = await quoteBestStockSwap(
-          giftEth,
-          stock.address,
-          stockUsd,
-          usd,
-        );
-      }
-
-      const route = bestQuote.route;
-      const minOut =
-        (bestQuote.amountOut * BigInt(Math.round(SLIPPAGE * 1000))) / 1000n;
-      if (minOut <= 0n) {
+      const giftLamports = lamportsForUsd(usd, solUsd);
+      const feeLamports = fee.grossFromGift(giftLamports) - giftLamports;
+      const cfg = await fetch("/api/solana/config").then((r) => r.json());
+      const built = await buildStockDropTxFor({
+        sender: new PublicKey(from),
+        mint: stock.address,
+        claimOwner: new PublicKey(key.publicKey),
+        giftLamports,
+        feeLamports,
+        treasury: cfg.treasury ? new PublicKey(cfg.treasury) : null,
+      });
+      if (built.outAmount <= 0n) {
         throw new Error("Quote too small. Try a different amount or stock.");
       }
-      const nowSec = Math.floor(Date.now() / 1000);
-      // Giveaway: unlock at a random second inside the window you set.
-      // Scheduled: unlock at the exact date the sender picked.
-      // Normal: claimable immediately.
-      let unlockAt = nowSec;
-      if (dropMode === "giveaway") {
-        unlockAt = nowSec + 1 + Math.floor(Math.random() * giveawayWindowSec);
-      } else if (dropMode === "scheduled") {
-        const picked = Math.floor(new Date(scheduleAtInput).getTime() / 1000);
-        if (!Number.isFinite(picked)) {
-          throw new Error("Pick a valid unlock date and time.");
-        }
-        if (picked < nowSec + 300) {
-          throw new Error("The unlock time must be at least 5 minutes from now.");
-        }
-        if (picked > nowSec + 5 * 365 * 86400) {
-          throw new Error("The unlock time can be at most 5 years from now.");
-        }
-        unlockAt = picked;
-      }
-      // Scheduled gifts stay claimable for EXPIRY_DAYS after they open,
-      // so a gift set for next year does not expire before it unlocks.
-      const expiresAt = unlockAt + EXPIRY_DAYS * 86400;
-      setClaimableAt(unlockAt);
-
-      let hash: `0x${string}`;
-      if (route.kind === "v3") {
-        hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESS,
-          abi: stockDropsAbi,
-          functionName: "createDropWithEth",
-          args: [
-            key.address,
-            stock.address,
-            route.path,
-            minOut,
-            expiresAt,
-            unlockAt,
-            splits,
-          ],
-          value,
-          account: from,
-          chain: walletClient.chain,
-        });
-      } else if (route.kind === "v4") {
-        hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESS,
-          abi: stockDropsAbi,
-          functionName: "createDropWithEthV4",
-          args: [
-            key.address,
-            stock.address,
-            route.fee,
-            route.tickSpacing,
-            route.hooks,
-            minOut,
-            expiresAt,
-            unlockAt,
-            splits,
-          ],
-          value,
-          account: from,
-          chain: walletClient.chain,
-        });
-      } else {
-        hash = await walletClient.writeContract({
-          address: CONTRACT_ADDRESS,
-          abi: stockDropsAbi,
-          functionName: "createDropWithEthViaUsdgV4",
-          args: [
-            key.address,
-            stock.address,
-            USDG,
-            route.ethToUsdgPath,
-            route.fee,
-            route.tickSpacing,
-            route.hooks,
-            minOut,
-            expiresAt,
-            unlockAt,
-            splits,
-          ],
-          value,
-          account: from,
-          chain: walletClient.chain,
-        });
-      }
-      await publicClient.waitForTransactionReceipt({ hash });
+      setClaimableAt(Math.floor(Date.now() / 1000));
+      const hash = await signAndSendTransaction(built.tx);
+      await confirmSignature(hash, built.blockhash, built.lastValidBlockHeight);
 
       let senderPart = "";
       if (xAuth.user) {
@@ -510,7 +411,7 @@ export default function SendPage() {
           const res = await fetch("/api/attest", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ claimKey: key.address }),
+            body: JSON.stringify({ claimKey: key.publicKey }),
           });
           if (res.ok) {
             const { handle, sig } = await res.json();
@@ -527,7 +428,7 @@ export default function SendPage() {
 
       // Recipient lock: swap the raw claim key for an encrypted blob that
       // only the intended X account can unlock via the server.
-      let keyPart: string = key.privateKey;
+      let keyPart = `sol:${key.secret}`;
       let lockPart = "";
       if (lockEnabled) {
         const cleanTo = lockHandle.trim().replace(/^@/, "");
@@ -535,7 +436,7 @@ export default function SendPage() {
           const res = await fetch("/api/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ claimPriv: key.privateKey, handle: cleanTo }),
+            body: JSON.stringify({ claimPriv: key.secret, handle: cleanTo }),
           });
           if (res.ok) {
             const { blob } = await res.json();
@@ -566,7 +467,7 @@ export default function SendPage() {
       setPhase("done");
 
       const entry: SavedDrop = {
-        claimKey: key.address,
+        claimKey: key.publicKey,
         link: url,
         symbol: stock.symbol,
         usd,
@@ -592,7 +493,7 @@ export default function SendPage() {
             ? `Giveaway locked until ${new Date(claimableAt * 1000).toLocaleTimeString()}. Share the link anytime.`
             : dropMode === "scheduled" && claimableAt
               ? `Sealed until ${new Date(claimableAt * 1000).toLocaleString()}. Share the link now - it opens exactly then.`
-              : `Your ${stock.symbol} tokens are now secured in escrow until the link is claimed.`
+              : `Your ${stock.symbol} tokens are in a one-time wallet until the link is claimed.`
         }
         media="/media/send-drop-v2.jpg"
         video="/media/send-drop-v2.mp4"
@@ -608,7 +509,7 @@ export default function SendPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">Stock drop created</p>
-                <p className="mt-0.5 text-xs text-gray-400">Escrow confirmed</p>
+                <p className="mt-0.5 text-xs text-gray-400">Confirmed on Solana</p>
               </div>
             </div>
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
@@ -751,7 +652,7 @@ export default function SendPage() {
             {txHash && (
               <a
                 className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition hover:text-gray-900"
-                href={`https://robinhoodchain.blockscout.com/tx/${txHash}`}
+                href={`https://solscan.io/tx/${txHash}`}
                 target="_blank"
               >
                 Transaction <ArrowUpRight className="h-3.5 w-3.5" />
@@ -768,7 +669,7 @@ export default function SendPage() {
       eyebrow="Create a stock drop"
       title="Send ownership."
       accent="Share the moment."
-      subtitle="Choose a stock and amount. We swap it onchain, secure it in escrow, and give you one private claim link."
+      subtitle="Choose a stock and an amount. Phantom swaps SOL to the xStock and locks it in a one-time wallet. You get one private claim link."
       media="/media/send-drop-v2.jpg"
       video="/media/send-drop-v2.mp4"
       mediaAlt="Glass capsule representing a secured stock drop"
@@ -802,7 +703,7 @@ export default function SendPage() {
                 setStockQuery(e.target.value);
                 setStockLimit(12);
               }}
-              placeholder={`Search ${STOCKS.length} stocks or paste a contract address`}
+              placeholder={`Search ${STOCKS.length} stocks`}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-400 focus:bg-white"
             />
           </label>
@@ -881,8 +782,7 @@ export default function SendPage() {
               </div>
               {filteredStocks.length === 0 && (
                 <p className="mt-2 text-[11px] text-gray-400">
-                  No match. Paste a contract address (0x…) to send any token on
-                  Robinhood Chain.
+                  No match in the xStock list.
                 </p>
               )}
               {hasMoreStocks && (
@@ -899,16 +799,15 @@ export default function SendPage() {
           <p className="mt-2 text-[11px] text-gray-400">{stock.name}</p>
           {isCustomStock && (
             <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
-              <span className="font-semibold">Unverified token.</span> This is
-              not an official Robinhood stock token. Anyone can create a token
-              with any name, so verify the contract yourself on{" "}
+              <span className="font-semibold">Unlisted token.</span> Send only
+              uses the xStocks above. Verify the mint on{" "}
               <a
-                href={`https://robinhoodchain.blockscout.com/token/${stock.address}`}
+                href={`https://solscan.io/token/${stock.address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold underline underline-offset-2"
               >
-                Blockscout
+                Solscan
               </a>{" "}
               before sending.
             </div>
@@ -986,10 +885,10 @@ export default function SendPage() {
             <div className="pb-1 text-right text-xs leading-5 text-gray-400">
               {amountMode === "usd" ? (
                 <>
-                  {ethAmount !== null && <p>≈ {ethAmount.toFixed(5)} ETH</p>}
+                  {solAmount !== null && <p>≈ {solAmount.toFixed(5)} SOL</p>}
                   {quoteState.status === "ready" ? (
                     <p className="text-gray-600">
-                      ≈ {formatShares(quoteState.quote.amountOut)} {stock.symbol}
+                      ≈ {formatShares(quoteState.quote.uiAmount)} {stock.symbol}
                     </p>
                   ) : approxShares !== null ? (
                     <p>
@@ -1000,7 +899,7 @@ export default function SendPage() {
               ) : (
                 <>
                   {usd > 0 && <p>≈ ${usd.toFixed(2)}</p>}
-                  {ethAmount !== null && <p>≈ {ethAmount.toFixed(5)} ETH</p>}
+                  {solAmount !== null && <p>≈ {solAmount.toFixed(5)} SOL</p>}
                 </>
               )}
             </div>
@@ -1050,7 +949,7 @@ export default function SendPage() {
           {usd > 0 && (
             <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3">
               {quoteState.status === "loading" && (
-                <p className="text-xs text-gray-400">Fetching live Uniswap quote…</p>
+                <p className="text-xs text-gray-400">Fetching a live Jupiter quote…</p>
               )}
               {quoteState.status === "idle" && (
                 <p className="text-xs text-gray-400">Enter an amount to preview the swap.</p>
@@ -1065,7 +964,7 @@ export default function SendPage() {
                       Live quote · best pool
                     </p>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {formatShares(quoteState.quote.amountOut)} {stock.symbol}
+                      {formatShares(quoteState.quote.uiAmount)} {stock.symbol}
                       {quotedUsd !== null && (
                         <span className="ml-1.5 font-normal text-gray-500">
                           ≈ ${quotedUsd.toFixed(2)}
@@ -1095,20 +994,17 @@ export default function SendPage() {
                       ) : (
                         <>
                           {fee.label}
-                          {ethUsd && (
+                          {solUsd && (
                             <>
                               {" · "}~$
                               {(
-                                (Number(formatEther(fee.feeFromGross(fee.grossFromGift(quoteState.ethIn)))) *
-                                  ethUsd)
+                                (Number(fee.grossFromGift(quoteState.solIn) - quoteState.solIn) /
+                                  1e9) *
+                                solUsd
                               ).toFixed(2)}{" "}
                               on top
                             </>
                           )}
-                          {" · "}
-                          <span className="text-gray-400">
-                            0% at 100k $GIVEST
-                          </span>
                         </>
                       )}
                     </p>
@@ -1123,169 +1019,24 @@ export default function SendPage() {
         </section>
 
         <section className="rounded-2xl border border-gray-200/60 bg-white/95 p-5 shadow-lg backdrop-blur-md">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
-                3
-              </span>
-              <h2 className="text-sm font-semibold tracking-tight text-gray-900">
-                Drop type
-              </h2>
-            </div>
-            <div className="flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
-              <button
-                type="button"
-                onClick={() => setDropMode("normal")}
-                className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                  dropMode === "normal"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-800"
-                }`}
-              >
-                Normal
-              </button>
-              <button
-                type="button"
-                onClick={() => setDropMode("giveaway")}
-                className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                  dropMode === "giveaway"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-800"
-                }`}
-              >
-                Giveaway
-              </button>
-              <button
-                type="button"
-                onClick={() => setDropMode("scheduled")}
-                className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                  dropMode === "scheduled"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-800"
-                }`}
-              >
-                Schedule
-              </button>
-            </div>
+          <div className="mb-3 flex items-center gap-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
+              3
+            </span>
+            <h2 className="text-sm font-semibold tracking-tight text-gray-900">
+              One claim
+            </h2>
           </div>
-          {dropMode === "normal" ? (
-            <p className="text-sm leading-relaxed text-gray-500">
-              Claim opens instantly. Best for gifts and DMs.
-            </p>
-          ) : dropMode === "giveaway" ? (
-            <div className="space-y-3">
-              <p className="text-sm leading-relaxed text-gray-500">
-                Share the link now - claiming unlocks at a random time inside your
-                window. Stops instant snipes.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {GIVEAWAY_WINDOWS.map((w) => (
-                  <button
-                    key={w.seconds}
-                    type="button"
-                    onClick={() => setGiveawayWindowSec(w.seconds)}
-                    className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
-                      giveawayWindowSec === w.seconds
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
-                    }`}
-                  >
-                    {w.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-gray-400">
-                Unlock picks a random second within the next{" "}
-                {giveawayWindowSec >= 60
-                  ? `${giveawayWindowSec / 60} min`
-                  : `${giveawayWindowSec}s`}
-                . Exact time is set onchain when you create.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm leading-relaxed text-gray-500">
-                Send it to the future. Pick the exact date and time the claim
-                opens - a birthday, a graduation, next New Year. The unlock is
-                enforced onchain, so not even you can open it early.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {SCHEDULE_PRESETS.map((p) => {
-                  const value = toLocalInputValue(
-                    new Date(Date.now() + p.days * 86400_000),
-                  );
-                  const selected = scheduleAtInput === value;
-                  return (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => setScheduleAtInput(value)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
-                        selected
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <input
-                type="datetime-local"
-                value={scheduleAtInput}
-                min={toLocalInputValue(new Date(Date.now() + 10 * 60_000))}
-                onChange={(e) => setScheduleAtInput(e.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 focus:bg-white"
-              />
-              <p className="text-[11px] text-gray-400">
-                The gift stays claimable for {EXPIRY_DAYS} days after it opens.
-                Unclaimed drops can be refunded after that.
-              </p>
-            </div>
-          )}
+          <p className="text-sm leading-relaxed text-gray-500">
+            One link, one wallet, claimable right away. The stock sits in a
+            one-time Solana wallet. Whoever has the link can claim it.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-gray-200/60 bg-white/95 p-5 shadow-lg backdrop-blur-md">
           <div className="mb-3 flex items-center gap-3">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
               4
-            </span>
-            <h2 className="text-sm font-semibold tracking-tight text-gray-900">
-              Winners
-            </h2>
-          </div>
-          <p className="text-sm leading-relaxed text-gray-500">
-            Split the drop across multiple wallets. One shared link - each address
-            claims once.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {SPLIT_PRESETS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setSplits(n)}
-                className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition ${
-                  splits === n
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-gray-400"
-                }`}
-              >
-                {n === 1 ? "1 winner" : `${n}`}
-              </button>
-            ))}
-          </div>
-          {splits > 1 && usd > 0 && (
-            <p className="mt-3 text-[11px] text-gray-400">
-              ~${(usd / splits).toFixed(2)} of {stock.symbol} per winner
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-2xl border border-gray-200/60 bg-white/95 p-5 shadow-lg backdrop-blur-md">
-          <div className="mb-3 flex items-center gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
-              5
             </span>
             <label className="text-sm font-semibold tracking-tight text-gray-900" htmlFor="drop-message">
               Add a note <span className="font-normal text-gray-400">(optional)</span>
@@ -1475,7 +1226,7 @@ export default function SendPage() {
 
           <div className="mt-3 flex items-center justify-center gap-2 text-[10px] text-gray-400">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Secured by the StockDrops escrow contract
+            Settled on Solana
           </div>
         </section>
 
@@ -1712,7 +1463,7 @@ function SavedDrops({ saved }: { saved: SavedDrop[] }) {
     let cancelled = false;
     Promise.all(
       saved.slice(0, 6).map(async (d) => {
-        const drop = await readDrop(d.claimKey as `0x${string}`);
+        const drop = await readDrop(d.claimKey);
         return [d.claimKey.toLowerCase(), drop] as const;
       }),
     ).then((rows) => {

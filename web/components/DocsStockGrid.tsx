@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import StockLogo from "@/components/StockLogo";
 import { STOCKS } from "@/lib/config";
 
-const EXPLORER = "https://robinhoodchain.blockscout.com";
+const EXPLORER = "https://solscan.io/token";
 
 function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -42,7 +42,7 @@ export default function DocsStockGrid() {
         {visible.map((s) => (
           <a
             key={s.symbol}
-            href={`${EXPLORER}/address/${s.address}`}
+            href={`${EXPLORER}/${s.address}`}
             target="_blank"
             rel="noopener noreferrer"
             className="group flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 transition hover:border-gray-400"

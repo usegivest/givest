@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { encryptClaimKey, lockConfigured } from "@/lib/xAuth";
+import { isClaimSecret } from "@/lib/solana";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     claimPriv?: string;
     handle?: string;
   };
-  if (!claimPriv || !/^0x[0-9a-fA-F]{64}$/.test(claimPriv)) {
+  if (!claimPriv || !isClaimSecret(claimPriv)) {
     return NextResponse.json({ error: "Invalid claim key" }, { status: 400 });
   }
   if (!handle || !/^[A-Za-z0-9_]{1,15}$/.test(handle)) {

@@ -1,31 +1,24 @@
-import { isAddress, type Address, type Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { isClaimSecret, isSolanaAddress, keypairFromSecret } from "./solana";
 
 export type ParsedClaimInput =
-  | { kind: "key"; claimKey: Address }
+  | { kind: "key"; claimKey: string; secret: string | null }
   | { kind: "locked"; to: string; blob: string }
   | { kind: "invalid"; message: string };
 
 function hashFromRaw(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
-
   const hashIdx = trimmed.indexOf("#");
   if (hashIdx >= 0) return trimmed.slice(hashIdx + 1);
-
   try {
     const url = new URL(trimmed);
     if (url.hash) return url.hash.slice(1);
   } catch {
-    // Not a URL. Treat the whole string as the fragment or a key.
+    // Treat the whole string as the fragment.
   }
   return trimmed;
 }
 
-/**
- * Parse a pasted claim link, private key, or claim-key address.
- * Private keys are converted to an address in-memory and never returned.
- */
 export function parseClaimInput(raw: string): ParsedClaimInput {
   const hash = hashFromRaw(raw);
   if (!hash) return { kind: "invalid", message: "Paste a claim link or a claim key." };
@@ -42,16 +35,23 @@ export function parseClaimInput(raw: string): ParsedClaimInput {
     return { kind: "invalid", message: "This locked link is missing its handle or key." };
   }
 
-  const token = head.startsWith("0x") ? head : `0x${head}`;
-
-  if (/^0x[0-9a-fA-F]{64}$/.test(token)) {
-    return { kind: "key", claimKey: privateKeyToAccount(token as Hex).address };
+  const token = head.startsWith("sol:") ? head.slice(4) : head;
+  if (isClaimSecret(token)) {
+    return {
+      kind: "key",
+      claimKey: keypairFromSecret(token).publicKey.toBase58(),
+      secret: token,
+    };
   }
-
-  if (isAddress(token)) {
-    return { kind: "key", claimKey: token };
+  if (isSolanaAddress(token)) {
+    return { kind: "key", claimKey: token, secret: null };
   }
-
+  if (/^0x[0-9a-fA-F]{64}$/.test(token) || /^0x[0-9a-fA-F]{40}$/.test(token)) {
+    return {
+      kind: "invalid",
+      message: "That link is from the previous chain. Solana gifts use a new link.",
+    };
+  }
   return {
     kind: "invalid",
     message: "That does not look like a Givest claim link or a claim key.",

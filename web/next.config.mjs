@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
-    return [{ source: "/roadmap", destination: "/", permanent: true }];
+    return [
+      { source: "/roadmap", destination: "/", permanent: true },
+      { source: "/volume", destination: "/", permanent: true },
+    ];
   },
   async headers() {
     return [

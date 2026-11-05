@@ -77,7 +77,7 @@ export default function EditorialPageShell({
                 </p>
               </div>
               <span className="hidden shrink-0 rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-[10px] font-medium backdrop-blur-md sm:block">
-                Robinhood Chain
+                Solana
               </span>
             </div>
           </section>

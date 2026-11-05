@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { isAddress } from "viem";
 import { claimTweetCode, lockConfigured } from "@/lib/xAuth";
+import { isSolanaAddress } from "@/lib/solana";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     !to ||
     !recipient ||
     !/^[A-Za-z0-9_]{1,15}$/.test(to) ||
-    !isAddress(recipient)
+    !isSolanaAddress(recipient)
   ) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

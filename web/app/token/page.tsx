@@ -2,15 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import TokenTierCheck from "@/components/TokenTierCheck";
-import { GIVEST_TOKEN } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "$GIVEST — Givest",
   description:
     "What holding $GIVEST gets you: lower protocol fees, free sends at VIP tier, and a share of everything the protocol earns going back into the community.",
 };
-
-const EXPLORER = "https://robinhoodchain.blockscout.com";
 
 function Card({
   title,
@@ -51,11 +48,7 @@ export default function TokenPage() {
             Hold $GIVEST. <span className="text-zinc-400">Send for less.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-500 sm:text-base">
-            $GIVEST is not a points system. It is the fee switch for the whole
-            protocol, read onchain on every send.
-          </p>
-          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 font-mono text-xs text-gray-600">
-            {GIVEST_TOKEN}
+            The Solana fee is a flat 1% until $GIVEST exists on Solana.
           </p>
         </header>
 
@@ -78,7 +71,7 @@ export default function TokenPage() {
               <li>
                 <span className="font-medium text-gray-900">Gasless claims.</span>{" "}
                 Every claim on Givest is relayed. Fees pay the gas so
-                recipients never need ETH.
+                recipients never need SOL.
               </li>
               <li>
                 <span className="font-medium text-gray-900">
@@ -99,33 +92,16 @@ export default function TokenPage() {
 
           <Card title="Send $GIVEST as a gift" delay={180}>
             <p>
-              $GIVEST is on the send list like any stock. Drop it to a friend
-              as a claim link, lock it to an X handle, or split one link
-              between winners in a giveaway.
+              $GIVEST is not on the Solana send list. The stocks you can send
+              are the xStocks: Nvidia, Apple, Tesla, and the rest on the send page.
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
               <Link
                 href="/send"
                 className="btn-primary inline-flex items-center justify-center px-5 py-2.5 text-sm"
               >
-                Send $GIVEST
+                Send a stock
               </Link>
-              <a
-                href={`${EXPLORER}/token/${GIVEST_TOKEN}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center justify-center px-5 py-2.5 text-sm"
-              >
-                View on Blockscout
-              </a>
-              <a
-                href={`https://dexscreener.com/robinhoodchain/${GIVEST_TOKEN}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center justify-center px-5 py-2.5 text-sm"
-              >
-                Chart
-              </a>
             </div>
           </Card>
 

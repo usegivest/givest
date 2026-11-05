@@ -1,27 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, isAddress, type Address, type Hex } from "viem";
-import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 import { ArrowUpRight, Check, Gift, KeyRound, Lock, ShieldCheck, Wallet } from "lucide-react";
 import EditorialPageShell from "@/components/EditorialPageShell";
 import StockLogo from "@/components/StockLogo";
-import {
-  CONTRACT_ADDRESS,
-  stockByAddress,
-  stockDropsAbi,
-  type Stock,
-} from "@/lib/config";
-import { fetchTokenInfo, tokenInfoToStock } from "@/lib/tokenInfo";
-import { publicClient, signClaim } from "@/lib/chain";
-import { readUsdPrice } from "@/lib/prices";
+import { stockByAddress, type Stock } from "@/lib/config";
+import { readDrop } from "@/lib/dropLookup";
 import { useWallet } from "@/lib/wallet";
+import { buildClaimTx, isSolanaAddress, keypairFromSecret } from "@/lib/solana";
 
 type DropInfo = {
-  sender: Address;
-  token: Address;
+  sender: string;
+  token: string;
   amount: bigint;
   amountPerClaim: bigint;
+  uiAmount: number;
   expiresAt: number;
   claimableAt: number;
   maxClaims: number;
@@ -29,14 +24,12 @@ type DropInfo = {
   status: number;
 };
 
-type NewWallet = { privateKey: Hex; address: Address };
+type NewWallet = { privateKey: string; address: string };
 type Platform = "ios" | "android" | "desktop";
 
-const RH_WALLET_IOS =
-  "https://apps.apple.com/us/app/robinhood-wallet/id1634080733";
-const RH_WALLET_ANDROID =
-  "https://play.google.com/store/apps/details?id=com.robinhood.gateway";
-const RH_WALLET_UNIVERSAL = "https://robinhood.com/us/en/download/wallet/";
+const PHANTOM_IOS = "https://apps.apple.com/app/phantom-solana-wallet/id1598432977";
+const PHANTOM_ANDROID = "https://play.google.com/store/apps/details?id=app.phantom";
+const PHANTOM_WEB = "https://phantom.app/download";
 
 function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "desktop";
@@ -69,7 +62,7 @@ function ClaimLayout({
       video="/media/claim-drop-v2.mp4"
       mediaAlt="Ivory envelope containing a glass stock token"
       mediaLabel="Sent privately, owned by you"
-      footer="Stock tokens provide economic exposure, not shareholder rights. Claims are settled on Robinhood Chain."
+      footer="Stock tokens provide economic exposure, not shareholder rights. Claims are settled on Solana."
     >
       {children}
     </EditorialPageShell>
@@ -102,7 +95,7 @@ function StatusCard({
 
 export default function ClaimPage() {
   const { connect } = useWallet();
-  const [claimPriv, setClaimPriv] = useState<Hex | null>(null);
+  const [claimPriv, setClaimPriv] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [fromX, setFromX] = useState<string | null>(null);
   const [fromXSig, setFromXSig] = useState<string | null>(null);
@@ -127,7 +120,7 @@ export default function ClaimPage() {
     maxClaims: number;
     claimsMade: number;
   } | null>(null);
-  const [lockRecipient, setLockRecipient] = useState<Address | null>(null);
+  const [lockRecipient, setLockRecipient] = useState<string | null>(null);
   const [lockAddrInput, setLockAddrInput] = useState("");
   const [lockTweetText, setLockTweetText] = useState<string | null>(null);
   const [lockTweetUrl, setLockTweetUrl] = useState("");
@@ -146,10 +139,14 @@ export default function ClaimPage() {
   const [usdValue, setUsdValue] = useState<number | null>(null);
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
 
-  const claimKeyAddress = useMemo(
-    () => (claimPriv ? privateKeyToAccount(claimPriv).address : null),
-    [claimPriv],
-  );
+  const claimKeyAddress = useMemo(() => {
+    if (!claimPriv) return null;
+    try {
+      return keypairFromSecret(claimPriv).publicKey.toBase58();
+    } catch {
+      return null;
+    }
+  }, [claimPriv]);
 
   useEffect(() => {
     const id = window.setInterval(
@@ -195,12 +192,19 @@ export default function ClaimPage() {
       setLoading(false);
       return;
     }
-    if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
-      setError("Invalid claim link.");
+    const secret = key.startsWith("sol:") ? key.slice(4) : key;
+    try {
+      keypairFromSecret(secret);
+    } catch {
+      setError(
+        key.startsWith("0x")
+          ? "This link is from the previous chain."
+          : "Invalid claim link.",
+      );
       setLoading(false);
       return;
     }
-    setClaimPriv(key as Hex);
+    setClaimPriv(secret);
   }, []);
 
   // Locked drops: show what is inside without exposing the claim key.
@@ -284,39 +288,24 @@ export default function ClaimPage() {
     if (!claimKeyAddress) return;
     (async () => {
       try {
-        const [
-          sender,
-          token,
-          amount,
-          amountPerClaim,
-          expiresAt,
-          claimableAt,
-          maxClaims,
-          claimsMade,
-          status,
-        ] = await publicClient.readContract({
-            address: CONTRACT_ADDRESS,
-            abi: stockDropsAbi,
-            functionName: "drops",
-            args: [claimKeyAddress],
-          });
-        setDrop({
-          sender,
-          token,
-          amount,
-          amountPerClaim,
-          expiresAt: Number(expiresAt),
-          claimableAt: Number(claimableAt),
-          maxClaims: Number(maxClaims),
-          claimsMade: Number(claimsMade),
-          status,
-        });
-        const stock = stockByAddress(token);
-        if (stock?.feed) {
-          const price = await readUsdPrice(stock.feed);
-          if (price !== null)
-            setUsdValue(Number(formatEther(amountPerClaim)) * price);
+        const view = await readDrop(claimKeyAddress);
+        if (!view) {
+          setError("Could not read the drop from the chain. Try reloading.");
+          return;
         }
+        setDrop({
+          sender: view.sender,
+          token: view.token,
+          amount: view.amount,
+          amountPerClaim: view.amountPerClaim,
+          expiresAt: view.expiresAt,
+          claimableAt: view.claimableAt,
+          maxClaims: view.maxClaims,
+          claimsMade: view.claimsMade,
+          status: view.status,
+          uiAmount: view.uiAmount,
+        });
+        if (view.usdEach !== null) setUsdValue(view.usdEach);
       } catch {
         setError("Could not read the drop from the chain. Try reloading.");
       } finally {
@@ -327,32 +316,24 @@ export default function ClaimPage() {
 
   // Custom tokens (sent by contract address) are not in the STOCKS list, so
   // resolve their symbol and logo from Blockscout instead.
-  const [fallbackStock, setFallbackStock] = useState<Stock | null>(null);
-  useEffect(() => {
-    if (!drop || stockByAddress(drop.token)) return;
-    let cancelled = false;
-    fetchTokenInfo(drop.token).then((info) => {
-      if (!cancelled && info) setFallbackStock(tokenInfoToStock(info));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [drop]);
+  const fallbackStock = null;
 
-  async function claimTo(addr: Address) {
+    async function claimTo(addr: string) {
     if (!claimPriv || !claimKeyAddress) return;
     setClaiming(true);
     setError(null);
     try {
-      const signature = await signClaim(claimPriv, CONTRACT_ADDRESS, addr);
+      const cfg = await fetch("/api/solana/config").then((r) => r.json());
+      if (!cfg.relayer) throw new Error("The relayer is not configured.");
+      const tx = await buildClaimTx({
+        claimSecret: claimPriv,
+        recipient: addr,
+        relayer: cfg.relayer,
+      });
       const res = await fetch("/api/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          claimKey: claimKeyAddress,
-          recipient: addr,
-          signature,
-        }),
+        body: JSON.stringify({ tx }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Claim failed");
@@ -377,7 +358,7 @@ export default function ClaimPage() {
   }
 
   const stock = drop ? (stockByAddress(drop.token) ?? fallbackStock) : null;
-  const shares = drop ? Number(formatEther(drop.amountPerClaim)) : 0;
+  const shares = drop?.uiAmount ?? 0;
   const remainingSlots = drop ? drop.maxClaims - drop.claimsMade : 0;
 
   if (claimedTx && stock) {
@@ -391,7 +372,7 @@ export default function ClaimPage() {
         <StatusCard
           icon={<Check className="h-5 w-5" />}
           title={`${shares.toFixed(4)} ${stock.symbol} is yours`}
-          body="The tokens were transferred to your wallet. Welcome to Robinhood Chain."
+          body="The tokens were transferred to your wallet. Welcome to Solana."
         />
         {newWallet && (
           <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-left text-sm">
@@ -406,7 +387,7 @@ export default function ClaimPage() {
         <div className="mt-5 text-center">
           <a
             className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-gray-900"
-            href={`https://robinhoodchain.blockscout.com/tx/${claimedTx}`}
+            href={`https://solscan.io/tx/${claimedTx}`}
             target="_blank"
           >
             View transaction <ArrowUpRight className="h-3.5 w-3.5" />
@@ -431,7 +412,7 @@ export default function ClaimPage() {
               ? `${lockDone.shares.toFixed(4)} ${lockDone.symbol} is yours`
               : "Your drop is claimed"
           }
-          body="The tokens were transferred to your wallet. Welcome to Robinhood Chain."
+          body="The tokens were transferred to your wallet. Welcome to Solana."
         />
         {newWallet && (
           <div className="mt-4 rounded-[20px] border border-amber-200 bg-amber-50 p-5 text-left text-sm">
@@ -446,7 +427,7 @@ export default function ClaimPage() {
         <div className="mt-5 text-center">
           <a
             className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-gray-900"
-            href={`https://robinhoodchain.blockscout.com/tx/${lockDone.txHash}`}
+            href={`https://solscan.io/tx/${lockDone.txHash}`}
             target="_blank"
           >
             View transaction <ArrowUpRight className="h-3.5 w-3.5" />
@@ -547,14 +528,14 @@ export default function ClaimPage() {
                     <div className="flex gap-2">
                       <input
                         className="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 font-mono text-xs text-gray-700 outline-none focus:border-gray-500"
-                        placeholder="Or paste a wallet address (0x…)"
+                        placeholder="Or paste a Solana address"
                         value={lockAddrInput}
                         onChange={(e) => setLockAddrInput(e.target.value.trim())}
                       />
                       <button
                         className="shrink-0 rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-gray-400 disabled:opacity-40"
-                        disabled={!isAddress(lockAddrInput)}
-                        onClick={() => setLockRecipient(lockAddrInput as Address)}
+                        disabled={!isSolanaAddress(lockAddrInput)}
+                        onClick={() => setLockRecipient(lockAddrInput)}
                       >
                         Use
                       </button>
@@ -562,8 +543,9 @@ export default function ClaimPage() {
                     <button
                       className="w-full text-center text-xs text-gray-400 underline-offset-2 transition hover:text-gray-700 hover:underline"
                       onClick={() => {
-                        const privateKey = generatePrivateKey();
-                        const address = privateKeyToAccount(privateKey).address;
+                        const kp = Keypair.generate();
+                        const privateKey = bs58.encode(kp.secretKey);
+                        const address = kp.publicKey.toBase58();
                         setNewWallet({ privateKey, address });
                         setLockRecipient(address);
                       }}
@@ -720,8 +702,8 @@ export default function ClaimPage() {
     );
   }
 
-  const expired = nowSec >= drop.expiresAt;
-  const locked = nowSec < drop.claimableAt;
+  const expired = drop.expiresAt > 0 && nowSec >= drop.expiresAt;
+  const locked = drop.claimableAt > 0 && nowSec < drop.claimableAt;
   const unlockIn = Math.max(0, drop.claimableAt - nowSec);
   // Long locks are scheduled gifts; short ones are giveaway randomizers.
   const scheduled = locked && unlockIn > 3600;
@@ -769,7 +751,7 @@ export default function ClaimPage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-900">{stock?.name ?? "Stock token"}</p>
-                <p className="mt-0.5 text-xs text-gray-400">Robinhood Chain</p>
+                <p className="mt-0.5 text-xs text-gray-400">Solana</p>
               </div>
             </div>
             <span
@@ -900,13 +882,13 @@ export default function ClaimPage() {
                     <div className="flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src="/robinhood-wallet.png"
-                        alt="Robinhood Wallet"
+                        src="/token/givest-256.png"
+                        alt="Phantom"
                         className="h-9 w-9 shrink-0 rounded-xl object-cover ring-1 ring-gray-200"
                       />
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          Get Robinhood Wallet
+                          Get Phantom
                         </p>
                         <p className="text-xs text-gray-400">
                           Free self-custody wallet · takes about a minute
@@ -919,9 +901,9 @@ export default function ClaimPage() {
                     <ol className="space-y-3">
                       {[
                         platform === "desktop"
-                          ? "Scan the QR code with your phone and download Robinhood Wallet."
-                          : "Download the Robinhood Wallet app.",
-                        "Open the app and create your wallet (no Robinhood account needed).",
+                          ? "Scan the QR code with your phone and download Phantom."
+                          : "Download the Phantom app.",
+                        "Open the app and create your wallet.",
                         "Tap Receive, copy your address, and paste it below.",
                       ].map((step, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
@@ -937,8 +919,8 @@ export default function ClaimPage() {
                       <div className="flex items-center gap-4 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(RH_WALLET_UNIVERSAL)}`}
-                          alt="QR code to download Robinhood Wallet"
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(PHANTOM_WEB)}`}
+                          alt="QR code to download Phantom"
                           className="h-24 w-24 rounded-xl bg-white ring-1 ring-gray-200"
                         />
                         <div className="text-xs leading-5 text-gray-500">
@@ -946,12 +928,12 @@ export default function ClaimPage() {
                           <p className="mt-1">
                             Or open{" "}
                             <a
-                              href={RH_WALLET_UNIVERSAL}
+                              href={PHANTOM_WEB}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-medium text-gray-900 underline underline-offset-2"
                             >
-                              robinhood.com/download/wallet
+                              phantom.app/download
                             </a>{" "}
                             on your phone.
                           </p>
@@ -959,7 +941,7 @@ export default function ClaimPage() {
                       </div>
                     ) : (
                       <a
-                        href={platform === "ios" ? RH_WALLET_IOS : RH_WALLET_ANDROID}
+                        href={platform === "ios" ? PHANTOM_IOS : PHANTOM_ANDROID}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex w-full items-center justify-center gap-2 rounded-full bg-gray-900 py-3.5 text-sm font-semibold text-white transition hover:bg-gray-800"
@@ -972,14 +954,14 @@ export default function ClaimPage() {
                     <div className="flex gap-2">
                       <input
                         className="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-3 font-mono text-xs text-gray-700 outline-none focus:border-gray-500"
-                        placeholder="Paste your wallet address (0x…)"
+                        placeholder="Paste your Solana address"
                         value={rhAddress}
                         onChange={(e) => setRhAddress(e.target.value.trim())}
                       />
                       <button
                         className="shrink-0 rounded-full bg-gray-900 px-5 py-3 text-xs font-semibold text-white transition hover:bg-gray-800 disabled:opacity-40"
-                        disabled={!isAddress(rhAddress) || claiming}
-                        onClick={() => claimTo(rhAddress as Address)}
+                        disabled={!isSolanaAddress(rhAddress) || claiming}
+                        onClick={() => claimTo(rhAddress)}
                       >
                         {claiming ? "Claiming…" : "Claim"}
                       </button>
@@ -988,8 +970,9 @@ export default function ClaimPage() {
                     <button
                       className="w-full text-center text-xs text-gray-400 underline-offset-2 transition hover:text-gray-700 hover:underline"
                       onClick={() => {
-                        const privateKey = generatePrivateKey();
-                        const address = privateKeyToAccount(privateKey).address;
+                        const kp = Keypair.generate();
+                        const privateKey = bs58.encode(kp.secretKey);
+                        const address = kp.publicKey.toBase58();
                         setNewWallet({ privateKey, address });
                         setRecipient(address);
                       }}
@@ -1040,14 +1023,14 @@ export default function ClaimPage() {
                 <div className="mt-2 flex gap-2">
                   <input
                     className="min-w-0 flex-1 rounded-full border border-gray-200 px-4 py-2.5 font-mono text-xs text-gray-700 outline-none focus:border-gray-500"
-                    placeholder="0x…"
+                    placeholder="Solana address"
                     value={recipient}
                     onChange={(e) => setRecipient(e.target.value)}
                   />
                   <button
                     className="rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition hover:border-gray-400 disabled:opacity-40"
-                    disabled={!isAddress(recipient) || claiming}
-                    onClick={() => claimTo(recipient as Address)}
+                    disabled={!isSolanaAddress(recipient) || claiming}
+                    onClick={() => claimTo(recipient)}
                   >
                     Claim
                   </button>

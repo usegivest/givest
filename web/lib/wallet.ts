@@ -1,78 +1,69 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  createWalletClient,
-  custom,
-  type Address,
-  type WalletClient,
-} from "viem";
-import { robinhoodChain } from "./config";
+import type { Transaction, VersionedTransaction } from "@solana/web3.js";
 
-type Eip1193 = {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+type Phantom = {
+  isPhantom?: boolean;
+  connect: () => Promise<{ publicKey: { toBase58(): string } }>;
+  signAndSendTransaction: (
+    tx: VersionedTransaction,
+  ) => Promise<{ signature: string }>;
+  signTransaction: (tx: Transaction) => Promise<Transaction>;
   on?: (event: string, cb: (...args: unknown[]) => void) => void;
 };
 
 declare global {
   interface Window {
-    ethereum?: Eip1193;
+    solana?: Phantom;
   }
 }
 
-const CHAIN_HEX = `0x${robinhoodChain.id.toString(16)}`;
-
-async function ensureChain(provider: Eip1193) {
-  try {
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: CHAIN_HEX }],
-    });
-  } catch {
-    await provider.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId: CHAIN_HEX,
-          chainName: robinhoodChain.name,
-          nativeCurrency: robinhoodChain.nativeCurrency,
-          rpcUrls: [robinhoodChain.rpcUrls.default.http[0]],
-          blockExplorerUrls: [robinhoodChain.blockExplorers.default.url],
-        },
-      ],
-    });
-  }
+function phantom(): Phantom | null {
+  const provider = window.solana;
+  if (!provider?.isPhantom) return null;
+  return provider;
 }
 
 export function useWallet() {
-  const [address, setAddress] = useState<Address | null>(null);
-  const [client, setClient] = useState<WalletClient | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   const [hasProvider, setHasProvider] = useState(false);
 
   useEffect(() => {
-    setHasProvider(Boolean(window.ethereum));
+    setHasProvider(Boolean(window.solana?.isPhantom));
   }, []);
 
   const connect = useCallback(async () => {
-    const provider = window.ethereum;
-    if (!provider) throw new Error("Ingen wallet fundet. Installér f.eks. MetaMask.");
-    const accounts = (await provider.request({
-      method: "eth_requestAccounts",
-    })) as Address[];
-    await ensureChain(provider);
-    const walletClient = createWalletClient({
-      account: accounts[0],
-      chain: robinhoodChain,
-      transport: custom(provider),
+    const provider = phantom();
+    if (!provider) throw new Error("Install Phantom to continue.");
+    const res = await provider.connect();
+    const next = res.publicKey.toBase58();
+    setAddress(next);
+    provider.on?.("accountChanged", (key) => {
+      const pk = key as { toBase58?: () => string } | null;
+      setAddress(pk?.toBase58?.() ?? null);
     });
-    setAddress(accounts[0]);
-    setClient(walletClient);
-    provider.on?.("accountsChanged", (accs) => {
-      const list = accs as Address[];
-      setAddress(list[0] ?? null);
-    });
-    return { address: accounts[0], client: walletClient };
+    return { address: next };
   }, []);
 
-  return { address, client, connect, hasProvider };
+  const signAndSendTransaction = useCallback(async (tx: VersionedTransaction) => {
+    const provider = phantom();
+    if (!provider) throw new Error("Install Phantom to continue.");
+    const { signature } = await provider.signAndSendTransaction(tx);
+    return signature;
+  }, []);
+
+  const signTransaction = useCallback(async (tx: Transaction) => {
+    const provider = phantom();
+    if (!provider) throw new Error("Install Phantom to continue.");
+    return provider.signTransaction(tx);
+  }, []);
+
+  return {
+    address,
+    connect,
+    hasProvider,
+    signAndSendTransaction,
+    signTransaction,
+  };
 }

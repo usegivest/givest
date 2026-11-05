@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import LogoMark from "@/components/LogoMark";
-import { useLiveStats } from "@/lib/useLiveStats";
 
 const GITHUB_URL = "https://github.com/usegivest/givest";
 
@@ -22,10 +21,9 @@ const BOARD = [
   {
     label: "Record",
     items: [
-      { href: "/volume", title: "Volume", fact: "ETH that entered the contracts." },
       { href: "/updates", title: "Updates", fact: "What shipped, with a date." },
-      { href: "/docs", title: "How it works", fact: "Escrow, the claim key, gas." },
-      { href: "/token", title: "Token", fact: "Hold $GIVEST. The fee drops." },
+      { href: "/docs", title: "How it works", fact: "Jupiter, the claim link, Solana." },
+      { href: "/token", title: "Token", fact: "The fee is 1%, paid in SOL." },
       { href: "/android", title: "Android", fact: "The APK is live. iPhone is not." },
     ],
   },
@@ -53,12 +51,6 @@ export default function Navbar({ variant = "floating" }: { variant?: "floating" 
   const [open, setOpen] = useState(false);
   const [board, setBoard] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
-  const stats = useLiveStats({
-    volumeLabel: "…",
-    stockVolumeLabel: "…",
-    dropCount: 0,
-    ready: false,
-  });
 
   useEffect(() => {
     setOpen(false);
@@ -140,25 +132,12 @@ export default function Navbar({ variant = "floating" }: { variant?: "floating" 
           </button>
         </div>
 
-        <Link
-          href="/volume"
-          className="ml-auto hidden items-baseline gap-2 rounded-full px-3 py-1.5 hover:bg-gray-50 sm:flex"
-        >
-          <span className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Onchain</span>
-          <span className="text-sm font-medium tracking-tight text-gray-900">
-            {stats.ready ? stats.volumeLabel : "…"}
-          </span>
-          <span className="text-xs text-gray-400">
-            {stats.ready ? `${stats.dropCount} drops` : ""}
-          </span>
-        </Link>
-
         <a
           href="https://x.com/usegivest"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Givest on X"
-          className="hidden text-gray-500 hover:text-gray-900 sm:block"
+          className="ml-auto hidden text-gray-500 hover:text-gray-900 sm:block"
         >
           <XIcon />
         </a>
@@ -184,7 +163,7 @@ export default function Navbar({ variant = "floating" }: { variant?: "floating" 
       </div>
       {board && (
         <div className="absolute top-full right-0 left-0 z-50 mt-3 hidden md:block">
-          <BoardPanel stats={stats} onNavigate={() => setBoard(false)} />
+          <BoardPanel onNavigate={() => setBoard(false)} />
         </div>
       )}
       </div>
@@ -198,10 +177,8 @@ export default function Navbar({ variant = "floating" }: { variant?: "floating" 
           >
             <div className="flex items-end justify-between border-b border-gray-100 px-5 py-4">
               <div>
-                <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Onchain</p>
-                <p className="mt-1 text-2xl font-medium tracking-tight text-gray-900">
-                  {stats.ready ? stats.volumeLabel : "…"}
-                </p>
+                <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Solana</p>
+                <p className="mt-1 text-2xl font-medium tracking-tight text-gray-900">xStocks</p>
               </div>
               <div className="flex items-center gap-4">
                 <a href="https://x.com/usegivest" target="_blank" rel="noopener noreferrer" aria-label="Givest on X" className="text-gray-500">
@@ -243,29 +220,19 @@ export default function Navbar({ variant = "floating" }: { variant?: "floating" 
   );
 }
 
-function BoardPanel({
-  stats,
-  onNavigate,
-}: {
-  stats: { volumeLabel: string; stockVolumeLabel: string; dropCount: number; ready: boolean };
-  onNavigate: () => void;
-}) {
+function BoardPanel({ onNavigate }: { onNavigate: () => void }) {
   return (
     <div className="overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-2xl">
       <div className="grid grid-cols-[210px_1fr]">
-        <Link href="/volume" onClick={onNavigate} className="flex flex-col justify-between bg-[#17191f] px-5 py-5 text-white">
+        <Link href="/send" onClick={onNavigate} className="flex flex-col justify-between bg-[#17191f] px-5 py-5 text-white">
           <div>
-            <p className="text-[10px] font-semibold tracking-[0.18em] text-white/50 uppercase">Onchain</p>
-            <p className="mt-3 text-3xl font-medium tracking-tight">
-              {stats.ready ? stats.volumeLabel : "…"}
-            </p>
+            <p className="text-[10px] font-semibold tracking-[0.18em] text-white/50 uppercase">Solana</p>
+            <p className="mt-3 text-3xl font-medium tracking-tight">Send a stock</p>
             <p className="mt-2 text-xs leading-relaxed text-white/60">
-              {stats.ready
-                ? `${stats.dropCount} drops · ${stats.stockVolumeLabel} stock locked`
-                : "Reading Robinhood Chain"}
+              SOL in. An xStock out. One private link.
             </p>
           </div>
-          <p className="mt-8 text-xs font-medium text-white/80">Open the ledger</p>
+          <p className="mt-8 text-xs font-medium text-white/80">Open send</p>
         </Link>
         <div className="grid grid-cols-2 gap-x-2 p-3">
           {BOARD.map((group) => (

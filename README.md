@@ -4,13 +4,13 @@
 
 # Givest
 
-**Send real tokenized stocks as a link - on Robinhood Chain.**
+**Send real tokenized stocks as a link, on Solana.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-1a1a1a.svg)](LICENSE)
-[![Chain](https://img.shields.io/badge/Robinhood_Chain-4663-00c805.svg)](https://robinhoodchain.blockscout.com)
-[![Built with](https://img.shields.io/badge/Next.js_+_Foundry-1a1a1a.svg)](#quickstart)
+[![Chain](https://img.shields.io/badge/Solana-xStocks-9945FF.svg)](https://solscan.io)
+[![Built with](https://img.shields.io/badge/Next.js_+_Jupiter-1a1a1a.svg)](#how-it-works)
 
-[**usegivest.app**](https://usegivest.app) · [Verify volume onchain](https://usegivest.app/volume) · [@usegivest](https://x.com/usegivest)
+[**usegivest.app**](https://usegivest.app) · [@usegivest](https://x.com/usegivest)
 
 <br />
 
@@ -20,13 +20,13 @@
 
 <br />
 
-Pick a stock and an amount. Givest swaps ETH into the stock token onchain, locks it in an escrow contract, and gives you one private claim link. The receiver claims in one click - no wallet setup, no gas. Unclaimed drops can always be refunded by the sender.
+Pick a stock and an amount. Phantom swaps SOL into the xStock on Jupiter and locks it in a one-time wallet. The private key is the claim link. The receiver claims in Phantom. A relayer pays the Solana fee. We never hold the stock.
 
 ## How it works
 
-1. **Create**: `createDropWithEth` wraps your ETH, swaps it into the stock token via Uniswap (v3 or v4, best route wins), and locks the output in escrow, all in one transaction. Each drop is bound to a one-time *claim key* whose private key exists only inside the link.
-2. **Claim**: the receiver signs their wallet address with the claim key from the link. Anyone (in practice our relayer) can submit the transaction; the contract verifies the signature and pays out. The receiver never pays gas.
-3. **Refund**: the sender can withdraw an unclaimed drop at any time. After expiry (30 days) anyone can push the tokens back to the sender.
+1. **Create**: Phantom swaps SOL to an xStock through Jupiter. The tokens land in a one-time Solana wallet. That wallet's secret is the claim link, and it never goes to our server.
+2. **Claim**: the receiver connects Phantom. The page signs a transfer to their wallet with the key from the link. Our relayer co-signs as fee payer. It cannot change the recipient.
+3. **Refund**: the sender can send the stock back from Your gifts, on the device that still has the link.
 
 <br />
 
@@ -34,8 +34,8 @@ Pick a stock and an amount. Givest swaps ETH into the stock token onchain, locks
 
 | Send | Claim |
 | :---: | :---: |
-| <img src="docs/send.png" width="400" alt="Send flow" /> | <img src="docs/claim.png" width="400" alt="Claim flow with Robinhood Wallet onboarding" /> |
-| Live Uniswap quotes before you send | Robinhood Wallet onboarding built in |
+| <img src="docs/send.png" width="400" alt="Send flow" /> | <img src="docs/claim.png" width="400" alt="Claim flow with Phantom" /> |
+| Live Jupiter quotes before you send | Phantom onboarding built in |
 
 </div>
 
@@ -43,14 +43,13 @@ Pick a stock and an amount. Givest swaps ETH into the stock token onchain, locks
 
 Built on the same primitive:
 
-- **Giveaway mode**: claiming unlocks at a random time inside a window the sender picks, so public giveaways can't be sniped the second they are posted.
-- **Split drops**: one link, N equal shares, one claim per wallet.
-- **Verified senders**: connect your X account and the receiver sees who the drop is from, attested server-side (HMAC over the claim key + handle).
-- **No-wallet onboarding**: receivers without a wallet are guided into Robinhood Wallet directly inside the claim flow, device-aware (App Store, Google Play, or QR on desktop).
+- **Listed xStocks**: Nvidia, Apple, Tesla, Microsoft, Meta, Alphabet, Amazon, SpaceX, and Micron. Mints are the official Xs tokens.
+- **Verified senders**: connect your X account and the receiver sees who the drop is from.
+- **No-wallet onboarding**: receivers without a wallet are guided into Phantom.
 
 ## The contract
 
-`StockDrops.sol` is a single self-contained escrow contract, no proxies and no upgradability. Deployed instances are listed on [usegivest.app/volume](https://usegivest.app/volume).
+The website does not use a custom program. `contracts/StockDrops.sol` is the previous Robinhood Chain escrow and is not what usegivest.app sends with.
 
 **Creating a drop.** Four entry points cover every route:
 
@@ -140,14 +139,14 @@ Escrow contracts and all protocol volume are public - every create and claim can
 ## Security model
 
 - The claim link **is** the money: whoever has the link can claim the drop. Links are never stored server-side.
-- The relayer key only pays gas and never holds user funds; drops sit in the escrow contract until claimed or refunded.
-- Protocol fees (1% on create, discounted for $GIVEST holders, 0% at 100k) fund gasless claims and public giveaways.
+- The relayer key only pays the Solana fee and never holds the stock. The tokens sit in the one-time wallet until claimed or refunded.
+- The create fee is 1% in SOL. It funds gasless claims.
 
 Found a vulnerability? Please reach out privately on X [@usegivest](https://x.com/usegivest) before disclosing.
 
 ## Disclaimer
 
-Stock tokens on Robinhood Chain provide economic exposure to the underlying stock - not shareholder rights. See Robinhood Chain's documentation.
+xStocks on Solana provide economic exposure to the underlying stock, not shareholder rights.
 
 ## License
 

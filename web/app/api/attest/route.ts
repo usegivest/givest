@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { isAddress } from "viem";
 import { attestSender, readSession } from "@/lib/xAuth";
+import { isSolanaAddress } from "@/lib/solana";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  if (!body.claimKey || !isAddress(body.claimKey)) {
+  if (!body.claimKey || !isSolanaAddress(body.claimKey)) {
     return NextResponse.json({ error: "Invalid claimKey" }, { status: 400 });
   }
 

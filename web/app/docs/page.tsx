@@ -1,18 +1,14 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import DocsStockGrid from "@/components/DocsStockGrid";
-import { CONTRACT_ADDRESS, STOCKS, WETH, EXPIRY_DAYS } from "@/lib/config";
+import { STOCKS, EXPIRY_DAYS, EXPLORER } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Docs · Givest",
   description:
-    "How Givest works: the escrow contract, claim links, gasless claims and supported stock tokens on Robinhood Chain.",
+    "How Givest works on Solana: Jupiter swaps, xStocks, claim links, and gasless claims.",
 };
 
-const EXPLORER = "https://robinhoodchain.blockscout.com";
-const DEPLOY_TX =
-  "0xfd84db411b90459292da51482cf756f049c4b2e875ab3d52bca6e70ee08bd398";
-const SWAP_ROUTER = "0xCaf681a66D020601342297493863E78C959E5cb2";
 
 function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -103,7 +99,7 @@ export default function DocsPage() {
             How it works. <span className="text-zinc-400">No magic.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-500 sm:text-base">
-            One open-source escrow contract on Robinhood Chain. Everything
+            Givest on Solana. Everything
             verifiable on-chain, nothing stored on our servers.
           </p>
         </header>
@@ -114,7 +110,7 @@ export default function DocsPage() {
               {[
                 [
                   "Create",
-                  "You pick a stock and an amount in USD. Your ETH is swapped to the real stock token on Uniswap and locked in the escrow contract - all in one transaction.",
+                  "You pick a stock and an amount in USD. Phantom swaps SOL into the xStock on Jupiter and locks it in a one-time wallet, in one transaction.",
                 ],
                 [
                   "Share",
@@ -142,38 +138,20 @@ export default function DocsPage() {
             </ol>
           </Card>
 
-          <Card title="The smart contract" delay={80}>
+          <Card title="Where the stock sits" delay={80}>
             <p>
-              A single escrow contract holds every drop. It is deployed on{" "}
-              <span className="font-medium text-gray-900">
-                Robinhood Chain (chain id 4663)
-              </span>{" "}
-              and its source is public - verify everything yourself.
+              There is no custom program yet. SOL is swapped to an xStock on Jupiter
+              and the tokens land in a one-time wallet. The private key is the claim
+              link. A relayer pays the Solana fee when someone claims, and it cannot
+              change the recipient.
             </p>
-            <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-4">
-              <AddressRow
-                label="Escrow contract"
-                address={CONTRACT_ADDRESS}
-                href={`${EXPLORER}/address/${CONTRACT_ADDRESS}`}
-              />
-              <AddressRow
-                label="Deployment tx"
-                address={DEPLOY_TX}
-                href={`${EXPLORER}/tx/${DEPLOY_TX}`}
-              />
-              <AddressRow
-                label="WETH"
-                address={WETH}
-                href={`${EXPLORER}/address/${WETH}`}
-              />
-              <AddressRow
-                label="Uniswap V3 router"
-                address={SWAP_ROUTER}
-                href={`${EXPLORER}/address/${SWAP_ROUTER}`}
-              />
-            </div>
             <p>
-              The contract exposes four functions:{" "}
+              Giveaways, splits, and scheduled unlocks come back when that program exists.
+              The send page is one link and one claim. Verify any transaction on{" "}
+              <a href={EXPLORER} className="underline underline-offset-2">Solscan</a>.
+            </p>
+            <p>
+              The old contract exposed:{" "}
               <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800">
                 createDropWithEth
               </code>
@@ -234,9 +212,7 @@ export default function DocsPage() {
 
           <Card title="Supported stock tokens" delay={240}>
             <p>
-              {STOCKS.length} deep-liquidity Robinhood stock tokens are listed.
-              Prices come from Chainlink feeds. Swaps only use thick Uniswap
-              routes on Robinhood Chain. Thin pools are blocked.
+              {STOCKS.length} xStocks are listed. Prices and swaps come from Jupiter.
             </p>
             <DocsStockGrid />
           </Card>
@@ -245,7 +221,7 @@ export default function DocsPage() {
             <div className="space-y-4">
               <div>
                 <p className="font-semibold text-gray-900">
-                  Does the recipient need a wallet or ETH?
+                  Does the recipient need a wallet or SOL?
                 </p>
                 <p className="mt-1">
                   No. The claim is gasless - the relayer pays the network fee.
@@ -267,10 +243,9 @@ export default function DocsPage() {
                   What does it cost?
                 </p>
                 <p className="mt-1">
-                  1% protocol fee on create (0.75% with 10k $GIVEST, free with
-                  100k). Fees fund gasless claims, buybacks, and protocol
-                  giveaways. You also pay normal network gas and the Uniswap
-                  swap fee. Claiming stays free for the recipient.
+                  1% protocol fee on create, paid in SOL. That fee funds gasless
+                  claims. You also pay the Solana network fee and the Jupiter
+                  swap. Claiming stays free for the recipient.
                 </p>
               </div>
             </div>
@@ -278,15 +253,14 @@ export default function DocsPage() {
         </div>
 
         <footer className="mx-auto mt-10 max-w-2xl text-center text-[10px] leading-4 text-gray-400">
-          Contract addresses on this page are read live from the app
-          configuration. Always verify on{" "}
+          Verify swaps and claims on{" "}
           <a
-            href={`${EXPLORER}/address/${CONTRACT_ADDRESS}`}
+            href={EXPLORER}
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-2 hover:text-gray-600"
           >
-            Blockscout
+            Solscan
           </a>{" "}
           before sending significant amounts.
         </footer>

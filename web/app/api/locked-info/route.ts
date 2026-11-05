@@ -1,19 +1,10 @@
 import { NextResponse } from "next/server";
-import { formatEther, type Address, type Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { publicClient } from "@/lib/chain";
-import { CONTRACT_ADDRESS, stockByAddress, stockDropsAbi } from "@/lib/config";
-import { fetchTokenInfo } from "@/lib/tokenInfo";
+import { stockByAddress } from "@/lib/config";
 import { decryptClaimKey, lockConfigured } from "@/lib/xAuth";
+import { holdingOf, keypairFromSecret } from "@/lib/solana";
 
 export const runtime = "nodejs";
 
-/**
- * Shows what is inside a recipient-locked drop without revealing the claim
- * key. The server decrypts internally, reads the drop onchain, and returns
- * only display data, so the claim page can render the gift before the
- * recipient has verified.
- */
 export async function POST(req: Request) {
   if (!lockConfigured()) {
     return NextResponse.json({ error: "Locking is not configured" }, { status: 503 });
@@ -29,35 +20,22 @@ export async function POST(req: Request) {
   }
 
   try {
-    const claimKey = privateKeyToAccount(claimPriv as Hex).address;
-    const [
-      ,
-      token,
-      ,
-      amountPerClaim,
-      expiresAt,
-      claimableAt,
-      maxClaims,
-      claimsMade,
-      status,
-    ] = await publicClient.readContract({
-      address: CONTRACT_ADDRESS,
-      abi: stockDropsAbi,
-      functionName: "drops",
-      args: [claimKey],
-    });
-    const stock =
-      stockByAddress(token as Address) ??
-      (await fetchTokenInfo(token as Address));
+    const claimKey = keypairFromSecret(claimPriv).publicKey.toBase58();
+    const held = await holdingOf(claimKey);
+    if (!held) {
+      return NextResponse.json({ error: "Could not read the drop from the chain" }, { status: 502 });
+    }
+    const stock = stockByAddress(held.mint);
+    const open = held.raw > 0n;
     return NextResponse.json({
       symbol: stock?.symbol ?? null,
       name: stock?.name ?? null,
-      shares: Number(formatEther(amountPerClaim)),
-      status,
-      maxClaims: Number(maxClaims),
-      claimsMade: Number(claimsMade),
-      claimableAt: Number(claimableAt),
-      expiresAt: Number(expiresAt),
+      shares: held.uiAmount,
+      status: open ? 1 : 2,
+      maxClaims: 1,
+      claimsMade: open ? 0 : 1,
+      claimableAt: 0,
+      expiresAt: 0,
     });
   } catch {
     return NextResponse.json(

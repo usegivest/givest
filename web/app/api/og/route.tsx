@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
             }}
           >
             <div style={{ fontSize: 22, color: "#8d8390" }}>
-              Escrowed on Robinhood Chain
+              Sent on Solana
             </div>
             <div style={{ fontSize: 24, fontWeight: 600, color: "#f3c9d7" }}>
               usegivest.app/claim

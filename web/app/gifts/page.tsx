@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { formatEther, type Address } from "viem";
 import Navbar from "@/components/Navbar";
 import StockLogo from "@/components/StockLogo";
 import { useWallet } from "@/lib/wallet";
@@ -39,7 +38,7 @@ export default function GiftsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all(local.map((d) => readDrop(d.claimKey as Address))).then((rows) => {
+    Promise.all(local.map((d) => readDrop(d.claimKey))).then((rows) => {
       if (!cancelled) setLocalLive(rows.filter((d): d is DropView => d !== null));
     });
     return () => {
@@ -103,7 +102,7 @@ export default function GiftsPage() {
               disabled={!hasProvider}
               className="btn-primary px-5 py-3 text-sm"
             >
-              {hasProvider ? "Connect wallet" : "Install a wallet to see onchain gifts"}
+              {hasProvider ? "Connect Phantom" : "Install Phantom to connect"}
             </button>
           )}
         </div>
@@ -131,7 +130,7 @@ export default function GiftsPage() {
             {merged.map((drop) => {
               const symbol = drop.stock?.symbol ?? "TOKEN";
               const saved = local.find(
-                (d) => d.claimKey.toLowerCase() === drop.claimKey.toLowerCase(),
+                (d) => d.claimKey === drop.claimKey,
               );
               return (
                 <li
@@ -144,7 +143,7 @@ export default function GiftsPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-gray-900">
-                        {Number(formatEther(drop.amountPerClaim)).toLocaleString("en-US", {
+                        {drop.uiAmount.toLocaleString("en-US", {
                           maximumFractionDigits: 6,
                         })}{" "}
                         {symbol}
@@ -182,7 +181,7 @@ export default function GiftsPage() {
 function mergeDrops(a: DropView[], b: DropView[]): DropView[] {
   const map = new Map<string, DropView>();
   for (const drop of [...a, ...b]) {
-    map.set(drop.claimKey.toLowerCase(), drop);
+    map.set(drop.claimKey, drop);
   }
   return [...map.values()].sort((x, y) => y.expiresAt - x.expiresAt);
 }

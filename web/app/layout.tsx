@@ -6,11 +6,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Givest",
   description:
-    "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+    "Send real stock tokens on Solana as a claim link. Give stocks, not gift cards.",
   openGraph: {
     title: "Givest",
     description:
-      "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+      "Send real stock tokens on Solana as a claim link. Give stocks, not gift cards.",
     url: "https://usegivest.app",
     siteName: "Givest",
     type: "website",
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Givest",
     description:
-      "Send real stock tokens on Robinhood Chain as a claim link. Give stocks, not gift cards.",
+      "Send real stock tokens on Solana as a claim link. Give stocks, not gift cards.",
     images: ["https://usegivest.app/api/og?s=STOCK&u=25"],
   },
 };

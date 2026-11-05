@@ -1,35 +1,15 @@
-import type { Address } from "viem";
 import type { Stock } from "./config";
 
-const EXPLORER_API = "https://robinhoodchain.blockscout.com/api/v2";
-
 export type TokenInfo = {
-  address: Address;
+  address: string;
   symbol: string;
   name: string;
-  decimals: number | null;
-  icon: string | null;
+  decimals: number;
 };
 
-/** Look up any ERC-20 on Robinhood Chain via Blockscout. */
-export async function fetchTokenInfo(
-  address: string,
-): Promise<TokenInfo | null> {
-  try {
-    const res = await fetch(`${EXPLORER_API}/tokens/${address}`);
-    if (!res.ok) return null;
-    const d = await res.json();
-    if (!d?.symbol) return null;
-    return {
-      address: (d.address_hash ?? d.address ?? address) as Address,
-      symbol: String(d.symbol),
-      name: String(d.name ?? d.symbol),
-      decimals: d.decimals != null ? Number(d.decimals) : null,
-      icon: d.icon_url ?? null,
-    };
-  } catch {
-    return null;
-  }
+/** Arbitrary mints are not listed. Send only uses the xStock list. */
+export async function fetchTokenInfo(_address: string): Promise<TokenInfo | null> {
+  return null;
 }
 
 export function tokenInfoToStock(info: TokenInfo): Stock {
@@ -37,7 +17,8 @@ export function tokenInfoToStock(info: TokenInfo): Stock {
     symbol: info.symbol,
     name: info.name,
     address: info.address,
-    feed: null,
-    icon: info.icon,
+    feed: info.address,
+    decimals: info.decimals,
+    tokenSymbol: info.symbol,
   };
 }

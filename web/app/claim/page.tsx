@@ -29,8 +29,8 @@ export async function generateMetadata({
     ? `$${usd} of ${symbol} · Givest`
     : `A ${symbol} gift · Givest`;
   const description = from
-    ? `@${from} sent you a real stock gift on Robinhood Chain. Claim it with one tap. Gas is covered.`
-    : "Someone sent you a real stock gift on Robinhood Chain. Claim it with one tap. Gas is covered.";
+    ? `@${from} sent you a real stock gift on Solana. Claim it with one tap. The fee is covered.`
+    : "Someone sent you a real stock gift on Solana. Claim it with one tap. The fee is covered.";
   const og = `https://usegivest.app/api/og?${qs.toString() || "s=STOCK"}`;
 
   return {

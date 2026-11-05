@@ -1,39 +1,22 @@
 import { NextResponse } from "next/server";
-import {
-  createWalletClient,
-  formatEther,
-  http,
-  isAddress,
-  type Address,
-  type Hex,
-} from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { publicClient, signClaim } from "@/lib/chain";
-import {
-  CONTRACT_ADDRESS,
-  robinhoodChain,
-  stockByAddress,
-  stockDropsAbi,
-} from "@/lib/config";
+import { stockByAddress } from "@/lib/config";
 import { claimTweetCode, decryptClaimKey, lockConfigured, readSession } from "@/lib/xAuth";
 import { extractTweetId, fetchPublicTweet } from "@/lib/tweetVerify";
-import { fetchTokenInfo } from "@/lib/tokenInfo";
+import {
+  buildClaimTx,
+  holdingOf,
+  isSolanaAddress,
+  keypairFromSecret,
+  submitRelayedClaim,
+} from "@/lib/solana";
 
 export const runtime = "nodejs";
 
-/**
- * Claims a recipient-locked drop. The recipient proves control of the
- * required X handle either with a proof tweet containing the verification
- * code, or with a matching X session (when OAuth is configured). The claim
- * key is decrypted and used server-side only, so the recipient never sees
- * it and the payout can only go to the wallet bound into the code.
- */
 export async function POST(req: Request) {
   if (!lockConfigured()) {
     return NextResponse.json({ error: "Locking is not configured" }, { status: 503 });
   }
-  const relayerKey = process.env.RELAYER_PRIVATE_KEY as Hex | undefined;
-  if (!relayerKey) {
+  if (!process.env.SOLANA_RELAYER_SECRET) {
     return NextResponse.json({ error: "Relayer is not configured" }, { status: 500 });
   }
 
@@ -49,13 +32,11 @@ export async function POST(req: Request) {
     !to ||
     !recipient ||
     !/^[A-Za-z0-9_]{1,15}$/.test(to) ||
-    !isAddress(recipient)
+    !isSolanaAddress(recipient)
   ) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  // Prove control of the handle: an X session with a matching handle, or
-  // a public proof tweet from the handle containing the bound code.
   const session = await readSession();
   const sessionOk = session?.u?.toLowerCase() === to.toLowerCase();
   if (!sessionOk) {
@@ -100,74 +81,25 @@ export async function POST(req: Request) {
   }
 
   try {
-    const claimKey = privateKeyToAccount(claimPriv as Hex).address;
-    const [
-      ,
-      token,
-      ,
-      amountPerClaim,
-      expiresAt,
-      claimableAt,
-      maxClaims,
-      claimsMade,
-      status,
-    ] = await publicClient.readContract({
-      address: CONTRACT_ADDRESS,
-      abi: stockDropsAbi,
-      functionName: "drops",
-      args: [claimKey],
-    });
-    if (status !== 1) {
+    const claimKey = keypairFromSecret(claimPriv).publicKey.toBase58();
+    const held = await holdingOf(claimKey);
+    if (!held || held.raw <= 0n) {
       return NextResponse.json({ error: "This drop is not active" }, { status: 409 });
     }
-    if (Number(claimsMade) >= Number(maxClaims)) {
-      return NextResponse.json({ error: "No shares left" }, { status: 409 });
-    }
-    const already = await publicClient.readContract({
-      address: CONTRACT_ADDRESS,
-      abi: stockDropsAbi,
-      functionName: "hasClaimed",
-      args: [claimKey, recipient as Address],
+    const relayer = process.env.SOLANA_RELAYER_SECRET
+      ? keypairFromSecret(process.env.SOLANA_RELAYER_SECRET).publicKey.toBase58()
+      : "";
+    const tx = await buildClaimTx({
+      claimSecret: claimPriv,
+      recipient,
+      relayer,
     });
-    if (already) {
-      return NextResponse.json(
-        { error: "This wallet already claimed. One claim per wallet." },
-        { status: 409 },
-      );
-    }
-    const now = Date.now() / 1000;
-    if (now < Number(claimableAt)) {
-      return NextResponse.json({ error: "This drop is not open yet" }, { status: 409 });
-    }
-    if (now >= Number(expiresAt)) {
-      return NextResponse.json({ error: "This drop has expired" }, { status: 409 });
-    }
-
-    const signature = await signClaim(
-      claimPriv as Hex,
-      CONTRACT_ADDRESS,
-      recipient as Address,
-    );
-    const relayer = createWalletClient({
-      account: privateKeyToAccount(relayerKey),
-      chain: robinhoodChain,
-      transport: http(robinhoodChain.rpcUrls.default.http[0]),
-    });
-    const txHash = await relayer.writeContract({
-      address: CONTRACT_ADDRESS,
-      abi: stockDropsAbi,
-      functionName: "claim",
-      args: [claimKey, recipient as Address, signature],
-    });
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-    const stock =
-      stockByAddress(token as Address) ??
-      (await fetchTokenInfo(token as Address));
+    const txHash = await submitRelayedClaim(tx);
+    const stock = stockByAddress(held.mint);
     return NextResponse.json({
       txHash,
       symbol: stock?.symbol ?? null,
-      shares: Number(formatEther(amountPerClaim)),
+      shares: held.uiAmount,
     });
   } catch (e) {
     console.error("[claim-locked] failed:", e);

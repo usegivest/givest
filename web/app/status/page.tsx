@@ -2,17 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { formatEther } from "viem";
 import { ArrowUpRight, Search } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import StockLogo from "@/components/StockLogo";
-import { stockDropsAbi } from "@/lib/config";
+import { EXPLORER } from "@/lib/config";
 import { parseClaimInput } from "@/lib/claimLink";
-import { publicClient } from "@/lib/chain";
 import { readDrop, type DropView } from "@/lib/dropLookup";
-import { useWallet } from "@/lib/wallet";
-
-const EXPLORER = "https://robinhoodchain.blockscout.com";
 
 const STATUS_LABEL: Record<number, string> = {
   1: "Open",
@@ -144,7 +139,7 @@ export default function StatusPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             rows={3}
-            placeholder="https://usegivest.app/claim#0x… or a 0x claim key"
+            placeholder="https://usegivest.app/claim#sol:… or a Solana claim key"
             className="input w-full resize-none px-4 py-3 font-mono text-xs sm:text-sm"
           />
           <button
@@ -265,7 +260,7 @@ function DropCard({
       </div>
 
       <p className="mt-3 text-2xl font-medium tracking-tight text-gray-900">
-        {Number(formatEther(drop.amountPerClaim)).toLocaleString("en-US", {
+        {drop.uiAmount.toLocaleString("en-US", {
           maximumFractionDigits: 6,
         })}{" "}
         {symbol}
@@ -286,7 +281,7 @@ function DropCard({
               : "Now"
           }
         />
-        <Row label="Expires" value={formatWhen(drop.expiresAt)} />
+        <Row label="Expires" value={drop.expiresAt > 0 ? formatWhen(drop.expiresAt) : "Until claimed"} />
         <Row
           label="Sender"
           value={
@@ -333,91 +328,18 @@ function DropCard({
           </Link>
         )}
         {drop.status === 1 && (
-          <RefundButton drop={drop} expired={expired} onDone={onRefresh} />
+          <RefundButton />
         )}
       </div>
     </section>
   );
 }
 
-function RefundButton({
-  drop,
-  expired,
-  onDone,
-}: {
-  drop: DropView;
-  expired: boolean;
-  onDone: () => void;
-}) {
-  const { address, client, connect } = useWallet();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const isSender =
-    address !== null && address.toLowerCase() === drop.sender.toLowerCase();
-
-  if (!expired && !isSender && address) {
-    return (
-      <p className="text-center text-xs text-gray-400">
-        Only the sender can refund this gift before it expires.
-      </p>
-    );
-  }
-
-  async function run() {
-    setError(null);
-    setBusy(true);
-    try {
-      let wallet = client;
-      let from = address;
-      if (!wallet || !from) {
-        const next = await connect();
-        wallet = next.client;
-        from = next.address;
-      }
-      if (!wallet || !from) throw new Error("Connect a wallet to refund.");
-      const fn = expired ? "refundExpired" : "refund";
-      if (!expired && from.toLowerCase() !== drop.sender.toLowerCase()) {
-        throw new Error("This wallet did not send the gift.");
-      }
-      const hash = await wallet.writeContract({
-        address: drop.escrow,
-        abi: stockDropsAbi,
-        functionName: fn,
-        args: [drop.claimKey],
-        account: from,
-        chain: wallet.chain,
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message.split("\n")[0] : "Refund failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+function RefundButton() {
   return (
-    <div>
-      <button
-        type="button"
-        onClick={run}
-        disabled={busy}
-        className="btn-secondary inline-flex w-full items-center justify-center px-5 py-3 text-sm"
-      >
-        {busy
-          ? "Refunding…"
-          : expired
-            ? "Return remaining tokens to sender"
-            : isSender || !address
-              ? "Refund this gift"
-              : "Connect sender wallet to refund"}
-      </button>
-      {error && (
-        <p className="mt-2 text-center text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+    <p className="text-center text-xs leading-5 text-gray-400">
+      Refund from Your gifts on the device that created the link. The key never leaves that browser.
+    </p>
   );
 }
 

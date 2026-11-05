@@ -1,89 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy } from "lucide-react";
 import PopupCard from "@/components/PopupCard";
+import StockLogo from "@/components/StockLogo";
+import { STOCKS } from "@/lib/config";
 
-const TOKEN_CA = "0x0188da44dcc9b6c9d0d80de904c633c5ff227777";
-
-function TokenCa() {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={async () => {
-        await navigator.clipboard.writeText(TOKEN_CA);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-      }}
-      className="mt-6 inline-flex items-center gap-2 rounded-full border border-gray-200/80 bg-white/70 px-4 py-2 font-mono text-[11px] text-gray-600 shadow-sm backdrop-blur-sm transition hover:border-gray-300 hover:text-gray-900 sm:text-xs"
-      aria-label="Copy token contract address"
-    >
-      <span className="font-sans font-semibold tracking-wide text-gray-400">CA</span>
-      <span className="hidden sm:inline">{TOKEN_CA}</span>
-      <span className="sm:hidden">
-        {TOKEN_CA.slice(0, 8)}…{TOKEN_CA.slice(-6)}
-      </span>
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-600" />
-      ) : (
-        <Copy className="h-3.5 w-3.5 text-gray-400" />
-      )}
-    </button>
-  );
-}
-
-function LiveNumbers({
-  volumeLabel,
-  stockVolumeLabel,
-  dropCount,
-  ready,
-}: {
-  volumeLabel: string;
-  stockVolumeLabel: string;
-  dropCount: number;
-  ready: boolean;
-}) {
-  const show = (value: string | number) => (ready ? value : "…");
-  return (
-    <div className="mt-10 w-full max-w-xl">
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <a href="/volume" className="rounded-2xl border border-gray-200/80 bg-white/80 px-3 py-4 text-left shadow-sm backdrop-blur-sm transition hover:border-gray-300 sm:px-4">
-          <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Volume</p>
-          <p className="mt-2 text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl">{show(volumeLabel)}</p>
-        </a>
-        <a href="/volume" className="rounded-2xl border border-gray-200/80 bg-white/80 px-3 py-4 text-left shadow-sm backdrop-blur-sm transition hover:border-gray-300 sm:px-4">
-          <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Drops</p>
-          <p className="mt-2 text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl">{show(dropCount)}</p>
-        </a>
-        <a href="/volume" className="rounded-2xl border border-gray-200/80 bg-white/80 px-3 py-4 text-left shadow-sm backdrop-blur-sm transition hover:border-gray-300 sm:px-4">
-          <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Stock</p>
-          <p className="mt-2 text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl">{show(stockVolumeLabel)}</p>
-        </a>
-      </div>
-      <p className="mt-3 text-xs text-gray-400">
-        {ready ? "Live from Robinhood Chain." : "Reading the chain…"}{" "}
-        <a href="/volume" className="underline-offset-2 hover:text-gray-700 hover:underline">
-          Verify
-        </a>
-      </p>
-    </div>
-  );
-}
-
-export default function Hero({
-  scrollProgress,
-  volumeLabel,
-  stockVolumeLabel,
-  dropCount,
-  ready,
-}: {
-  scrollProgress: number;
-  volumeLabel: string;
-  stockVolumeLabel: string;
-  dropCount: number;
-  ready: boolean;
-}) {
+export default function Hero({ scrollProgress }: { scrollProgress: number }) {
   const opacity = Math.max(1 - scrollProgress * 2.5, 0);
   const translateY = scrollProgress * -60;
 
@@ -106,7 +27,7 @@ export default function Hero({
       </h1>
 
       <p className="mt-8 max-w-sm text-base leading-relaxed text-gray-500">
-        A stock, a dollar amount, a link. They claim it. You paid the gas.
+        A stock, a dollar amount, a link. They claim it. You paid the fee.
       </p>
 
       <div className="mt-8 grid w-full max-w-xl grid-cols-2 gap-3 text-left">
@@ -118,16 +39,29 @@ export default function Hero({
         <a href="/claim" className="rounded-[24px] border border-gray-200/80 bg-white/85 px-5 py-5 text-gray-900 shadow-sm backdrop-blur-sm transition hover:border-gray-300">
           <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">Claim</p>
           <p className="mt-3 text-xl font-medium tracking-tight">Open the link.</p>
-          <p className="mt-1 text-sm leading-snug text-gray-500">One tap. No gas. No wallet setup first.</p>
+          <p className="mt-1 text-sm leading-snug text-gray-500">One tap. No fee. Phantom receives it.</p>
         </a>
       </div>
 
-      <LiveNumbers
-        volumeLabel={volumeLabel}
-        stockVolumeLabel={stockVolumeLabel}
-        dropCount={dropCount}
-        ready={ready}
-      />
+      <div className="mt-8 w-full max-w-xl">
+        <p className="text-[10px] font-semibold tracking-[0.16em] text-gray-400 uppercase">
+          xStocks on Solana
+        </p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          {STOCKS.map((stock) => (
+            <a
+              key={stock.symbol}
+              href={`/send?s=${stock.symbol}`}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200/80 bg-white/85 py-1.5 pr-3.5 pl-1.5 text-sm font-medium text-gray-900 shadow-sm backdrop-blur-sm transition hover:border-gray-300"
+            >
+              <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gray-50">
+                <StockLogo symbol={stock.symbol} size={22} />
+              </span>
+              {stock.symbol}
+            </a>
+          ))}
+        </div>
+      </div>
 
       <p className="mt-4 max-w-sm text-sm text-gray-500">
         iPhone is not out yet.{" "}
@@ -139,8 +73,6 @@ export default function Hero({
           updates
         </a>
       </p>
-
-      <TokenCa />
 
       <PopupCard />
     </section>

@@ -48,8 +48,8 @@ export default function ShowcaseSection({
               Faster and Clearer
             </h2>
             <p className="mt-5 max-w-md text-sm leading-relaxed text-gray-600 md:text-base md:text-white/70">
-              Buy real stock tokens, lock them in escrow, and share a claim
-              link. The recipient gets stocks in one click with zero gas.
+              Swap SOL to a real xStock, lock it in a one-time wallet, and share
+              the claim link. The recipient gets the stock in Phantom.
             </p>
             <Link
               href="/send"
